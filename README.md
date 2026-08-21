@@ -2,6 +2,8 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
+Versión actual: `v0.1.1-dev`, conectada al despliegue **D9 Gestión DEV**.
+
 ## Primera base funcional
 
 - Inicio con resumen diario.
