@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#55b8df">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>D9 Gestión</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <section class="login-card">
+      <div class="brand brand-login">
+        <img src="icons/logo_d9.png" alt="D9">
+        <div><small>DISTRIBUIDORA 9</small><h1>D9 Gestión</h1><p>Centro comercial y cobranzas</p></div>
+      </div>
+      <form id="loginForm" class="stack">
+        <label>Usuario<input id="loginUser" autocomplete="username" required></label>
+        <label>Clave<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+        <button class="btn primary big" type="submit">Ingresar</button>
+      </form>
+      <p id="loginMessage" class="helper">Acceso exclusivo para usuarios autorizados.</p>
+    </section>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <button id="homeLogo" class="logo-button" aria-label="Ir al inicio"><img src="icons/logo_d9.png" alt="D9"></button>
+      <div class="top-title"><small>DISTRIBUIDORA 9</small><strong id="viewTitle">Gestión</strong></div>
+      <div class="top-actions">
+        <span id="syncBadge" class="sync-badge">Sincronizando…</span>
+        <button id="btnRefresh" class="icon-button" title="Actualizar">↻</button>
+        <button id="btnLogout" class="icon-button" title="Salir">⇥</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <nav id="nav" class="nav">
+          <button data-view="home" class="active"><span>⌂</span>Inicio</button>
+          <button data-view="pedidos"><span>🧾</span>Pedidos</button>
+          <button data-view="operaciones"><span>📄</span>Comprobantes</button>
+          <button data-view="cuentas"><span>👥</span>Cuentas corrientes</button>
+          <button data-view="recibos"><span>💵</span>Recibos</button>
+          <button data-view="cheques"><span>🏦</span>Cheques</button>
+          <button data-view="maestros"><span>📦</span>Productos y clientes</button>
+          <button data-view="config"><span>⚙</span>Configuración</button>
+        </nav>
+        <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span></div>
+      </aside>
+
+      <main class="content">
+        <section id="view-home" class="view active">
+          <div class="welcome-row"><div><small id="todayLabel"></small><h2>Hola, <span id="welcomeName">Ale</span></h2><p>Esto es lo importante de hoy.</p></div><button id="btnNewOperation" class="btn primary big">＋ Nuevo comprobante</button></div>
+          <div class="kpi-grid">
+            <article class="kpi blue"><span>Pedidos de hoy</span><strong id="kpiOrders">0</strong><small>desde D9 Pedidos</small></article>
+            <article class="kpi green"><span>Comprobantes de hoy</span><strong id="kpiOperations">0</strong><small id="kpiOperationsAmount">$ 0</small></article>
+            <article class="kpi amber"><span>Saldo pendiente</span><strong id="kpiDebt">$ 0</strong><small>cuentas corrientes</small></article>
+            <article class="kpi violet"><span>Cheques próximos</span><strong id="kpiChecks">0</strong><small>en los próximos 7 días</small></article>
+          </div>
+          <div class="home-columns">
+            <article class="panel"><div class="panel-head"><div><h3>Pedidos recientes</h3><p>Convertí un pedido sin volver a cargarlo.</p></div><button class="link-button" data-go="pedidos">Ver todos</button></div><div id="homeOrders" class="compact-list empty">Sin pedidos.</div></article>
+            <article class="panel"><div class="panel-head"><div><h3>Cobranzas pendientes</h3><p>Clientes con saldo abierto.</p></div><button class="link-button" data-go="cuentas">Ver cuentas</button></div><div id="homeDebts" class="compact-list empty">Sin saldos pendientes.</div></article>
+          </div>
+        </section>
+
+        <section id="view-pedidos" class="view">
+          <div class="page-head"><div><h2>Pedidos</h2><p>Pedidos cargados desde D9 Pedidos.</p></div><button id="btnReloadOrders" class="btn secondary">↻ Actualizar</button></div>
+          <div class="filters"><input id="ordersSearch" placeholder="Buscar cliente, vendedor, pedido o producto"><input id="ordersDate" type="date"><select id="ordersStatus"><option value="active">Activos</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
+          <div id="ordersList" class="card-list empty">Sin pedidos para mostrar.</div>
+        </section>
+
+        <section id="view-operaciones" class="view">
+          <div class="page-head"><div><h2>Comprobantes</h2><p>Remitos y proformas creados en Gestión.</p></div><button id="btnNewOperation2" class="btn primary">＋ Nuevo</button></div>
+          <div class="filters"><input id="operationsSearch" placeholder="Buscar número, cliente u origen"><select id="operationsStatus"><option value="active">Vigentes</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
+          <div id="operationsList" class="card-list empty">Todavía no hay comprobantes.</div>
+        </section>
+
+        <section id="view-cuentas" class="view">
+          <div class="page-head"><div><h2>Cuentas corrientes</h2><p>Saldo calculado desde movimientos, sin números dibujados.</p></div></div>
+          <div class="filters"><input id="accountsSearch" placeholder="Buscar cliente"><select id="accountsFilter"><option value="debt">Con saldo</option><option value="all">Todas</option><option value="credit">A favor</option></select></div>
+          <div id="accountsList" class="card-list empty">Sin movimientos.</div>
+        </section>
+
+        <section id="view-recibos" class="view">
+          <div class="page-head"><div><h2>Recibos</h2><p>Ingresos de pagos realizados después del comprobante.</p></div><button id="btnNewReceipt" class="btn primary">＋ Nuevo recibo</button></div>
+          <div class="filters"><input id="receiptsSearch" placeholder="Buscar recibo o cliente"></div>
+          <div id="receiptsList" class="card-list empty">Todavía no hay recibos.</div>
+        </section>
+
+        <section id="view-cheques" class="view">
+          <div class="page-head"><div><h2>Cheques</h2><p>Seguimiento desde que ingresan hasta su cobro o rechazo.</p></div></div>
+          <div class="filters"><input id="checksSearch" placeholder="Buscar banco, número, cliente o librador"><select id="checksStatus"><option value="active">En cartera y próximos</option><option value="all">Todos</option><option value="rejected">Rechazados</option></select></div>
+          <div id="checksList" class="card-list empty">No hay cheques registrados.</div>
+        </section>
+
+        <section id="view-maestros" class="view">
+          <div class="page-head"><div><h2>Productos y clientes</h2><p>Datos sincronizados desde la Sheet central de D9.</p></div></div>
+          <div class="tabs"><button class="active" data-master-tab="clients">Clientes</button><button data-master-tab="products">Productos</button><button data-master-tab="users">Usuarios</button></div>
+          <div class="filters"><input id="mastersSearch" placeholder="Buscar"></div>
+          <div id="mastersList" class="card-list empty">Sin datos sincronizados.</div>
+        </section>
+
+        <section id="view-config" class="view">
+          <div class="page-head"><div><h2>Configuración</h2><p>Parámetros propios de Gestión. La configuración de D9 Pedidos se incorporará más adelante.</p></div></div>
+          <form id="configForm" class="panel form-grid">
+            <label>Nombre comercial<input name="empresa_nombre" value="Distribuidora D9"></label>
+            <label>Título del comprobante<select name="documento_default"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option></select></label>
+            <label>Prefijo numeración<input name="documento_prefijo" value="R"></label>
+            <label>Formato de impresión<select name="impresion"><option value="A5">Media hoja A4 (A5)</option><option value="A4">Hoja A4</option></select></label>
+            <label class="wide">Leyenda inferior<textarea name="leyenda">Comprobante interno no válido como factura.</textarea></label>
+            <div class="wide"><button class="btn primary" type="submit">Guardar configuración</button></div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="operationDialog" class="dialog wide-dialog">
+    <form id="operationForm" method="dialog">
+      <div class="dialog-head"><div><small>NUEVO COMPROBANTE</small><h2 id="operationDialogTitle">Crear desde cero</h2></div><button type="button" class="dialog-close" data-close="operationDialog">×</button></div>
+      <input id="opSourceOrder" type="hidden">
+      <div class="form-grid">
+        <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option></select></label>
+        <label>Fecha<input id="opDate" type="date" required></label>
+        <label class="wide">Cliente<div class="combo-row"><select id="opClient" required></select><button id="btnOccasionalClient" type="button" class="btn secondary">Cliente ocasional</button></div></label>
+      </div>
+      <section class="editor-section"><div class="section-head"><div><h3>Productos</h3><p>Podés cambiar cantidades y precios antes de guardar.</p></div><button id="btnAddItem" type="button" class="btn secondary">＋ Agregar producto</button></div><div id="opItems" class="item-editor"></div></section>
+      <div class="form-grid">
+        <label>Descuento general %<input id="opDiscount" type="number" min="0" max="100" step="0.01" value="0"></label>
+        <label>Forma de pago inicial<select id="opPaymentMethod"><option value="CUENTA_CORRIENTE">Cuenta corriente</option><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="CHEQUE">Cheque</option><option value="MIXTO">Mixto</option></select></label>
+        <label>Importe pagado ahora<input id="opPaidAmount" type="number" min="0" step="0.01" value="0"></label>
+        <label>Referencia<input id="opPaymentReference" placeholder="Transferencia, recibo, etc."></label>
+        <label class="wide">Observaciones<textarea id="opNotes" placeholder="Condiciones, entrega, aclaraciones…"></textarea></label>
+      </div>
+      <section id="opMixedFields" class="subpanel hidden"><h3>Detalle del pago mixto</h3><div class="form-grid"><label>Efectivo<input id="opMixedCash" type="number" min="0" step="0.01" value="0"></label><label>Transferencia<input id="opMixedTransfer" type="number" min="0" step="0.01" value="0"></label><label>Cheque<input id="opMixedCheck" type="number" min="0" step="0.01" value="0"></label><label>Referencia transferencia<input id="opMixedReference"></label></div></section>
+      <section id="opCheckFields" class="subpanel hidden"><h3>Datos del cheque</h3><div class="form-grid"><label>Banco<input id="opCheckBank"></label><label>Número<input id="opCheckNumber"></label><label>Librador<input id="opCheckIssuer"></label><label>Vencimiento<input id="opCheckDue" type="date"></label></div></section>
+      <div class="operation-total"><span>Total</span><strong id="opTotal">$ 0</strong><small id="opBalance">Saldo: $ 0</small></div>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="operationDialog">Cancelar</button><button id="btnSaveOperation" type="submit" class="btn primary big">Guardar comprobante</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="receiptDialog" class="dialog">
+    <form id="receiptForm" method="dialog">
+      <div class="dialog-head"><div><small>NUEVO MOVIMIENTO</small><h2>Registrar recibo</h2></div><button type="button" class="dialog-close" data-close="receiptDialog">×</button></div>
+      <div class="form-grid">
+        <label class="wide">Cliente<select id="receiptClient" required></select></label>
+        <label>Fecha<input id="receiptDate" type="date" required></label>
+        <label>Medio<select id="receiptMethod"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="CHEQUE">Cheque</option><option value="MIXTO">Mixto</option></select></label>
+        <label>Importe<input id="receiptAmount" type="number" min="0.01" step="0.01" required></label>
+        <label>Referencia<input id="receiptReference"></label>
+        <label class="wide">Aplicar a<select id="receiptOperation"><option value="">A cuenta, sin comprobante específico</option></select></label>
+        <label class="wide">Observaciones<textarea id="receiptNotes"></textarea></label>
+      </div>
+      <section id="receiptMixedFields" class="subpanel hidden"><h3>Detalle del pago mixto</h3><div class="form-grid"><label>Efectivo<input id="receiptMixedCash" type="number" min="0" step="0.01" value="0"></label><label>Transferencia<input id="receiptMixedTransfer" type="number" min="0" step="0.01" value="0"></label><label>Cheque<input id="receiptMixedCheck" type="number" min="0" step="0.01" value="0"></label><label>Referencia transferencia<input id="receiptMixedReference"></label></div></section>
+      <section id="receiptCheckFields" class="subpanel hidden"><h3>Datos del cheque</h3><div class="form-grid"><label>Banco<input id="receiptCheckBank"></label><label>Número<input id="receiptCheckNumber"></label><label>Librador<input id="receiptCheckIssuer"></label><label>Vencimiento<input id="receiptCheckDue" type="date"></label></div></section>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="receiptDialog">Cancelar</button><button class="btn primary big" type="submit">Guardar recibo</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
+  <div id="toast" class="toast hidden"></div>
+  <script src="config.js"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>
