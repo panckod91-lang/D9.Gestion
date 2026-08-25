@@ -18,3 +18,4 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:lin
 @media(max-width:760px){.nav{grid-template-columns:repeat(6,1fr)}.nav .desktop-only{display:none}.nav .mobile-more{display:grid!important}.receipt-debts-panel{padding:15px}.client-picker{max-height:210px}.more-dialog{position:fixed;top:auto;bottom:8px;margin:auto 12px 0;width:calc(100vw - 24px);max-height:calc(100vh - 90px)}}
 @media(max-width:420px){.nav{grid-template-columns:repeat(6,1fr)}.nav button{font-size:8px}.nav button span{font-size:17px}}
 @media print{body>*{display:none!important}.print-sheet{display:block!important}}
+.selected-client .mini-btn{flex:0 0 auto}
