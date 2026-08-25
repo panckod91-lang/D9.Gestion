@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.1.3-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.1.5-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -13,6 +13,9 @@ Versión actual: `v0.1.3-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Impresión en media hoja A4 (A5).
 - Pago inicial, pago mixto o saldo en cuenta corriente.
 - Recibos posteriores y aplicación a comprobantes.
+- Cobranza guiada desde clientes con saldo pendiente.
+- Buscadores por cualquier fragmento del texto, sin distinguir tildes ni mayúsculas.
+- Menú móvil “Más” para acceder a cheques, maestros y configuración.
 - Cuentas corrientes basadas en movimientos Debe/Haber.
 - Ingreso y seguimiento de cheques.
 - Anulación con contramovimiento y auditoría.

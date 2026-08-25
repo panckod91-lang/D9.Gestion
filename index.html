@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -47,9 +47,10 @@
           <button data-view="operaciones"><span>📄</span>Comprobantes</button>
           <button data-view="cuentas"><span>👥</span>Cta. cte.</button>
           <button data-view="recibos"><span>💵</span>Recibos</button>
-          <button data-view="cheques"><span>🏦</span>Cheques</button>
-          <button data-view="maestros"><span>📦</span>Productos y clientes</button>
-          <button data-view="config"><span>⚙</span>Configuración</button>
+          <button id="btnMore" class="mobile-more" type="button"><span>☰</span>Más</button>
+          <button class="desktop-only" data-view="cheques"><span>🏦</span>Cheques</button>
+          <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y clientes</button>
+          <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
         <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span></div>
       </aside>
@@ -89,7 +90,13 @@
 
         <section id="view-recibos" class="view">
           <div class="page-head"><div><h2>Recibos</h2><p>Ingresos de pagos realizados después del comprobante.</p></div><button id="btnNewReceipt" class="btn primary">＋ Nuevo recibo</button></div>
-          <div class="filters"><input id="receiptsSearch" placeholder="Buscar recibo o cliente"></div>
+          <section class="panel receipt-debts-panel">
+            <div class="panel-head"><div><h3>Cobrar saldos pendientes</h3><p>Elegí un cliente para registrar su pago.</p></div></div>
+            <div class="filters single-filter"><input id="receiptDebtsSearch" type="search" placeholder="Buscar cliente con deuda"></div>
+            <div id="receiptDebtsList" class="compact-list empty">No hay saldos pendientes.</div>
+          </section>
+          <div class="list-section-head"><div><h3>Recibos emitidos</h3><p>Historial de pagos ya registrados.</p></div></div>
+          <div class="filters single-filter"><input id="receiptsSearch" type="search" placeholder="Buscar por cliente o número de recibo"></div>
           <div id="receiptsList" class="card-list empty">Todavía no hay recibos.</div>
         </section>
 
@@ -146,10 +153,16 @@
   </dialog>
 
   <dialog id="receiptDialog" class="dialog">
-    <form id="receiptForm" method="dialog">
+    <form id="receiptForm" method="dialog" novalidate>
       <div class="dialog-head"><div><small>NUEVO MOVIMIENTO</small><h2>Registrar recibo</h2></div><button type="button" class="dialog-close" data-close="receiptDialog">×</button></div>
       <div class="form-grid">
-        <label class="wide">Cliente<select id="receiptClient" required></select></label>
+        <div class="wide searchable-client-field">
+          <label for="receiptClientSearch">Cliente con saldo pendiente</label>
+          <input id="receiptClientSearch" type="search" autocomplete="off" placeholder="Escribí cualquier parte del nombre">
+          <input id="receiptClient" type="hidden">
+          <div id="receiptClientSelected" class="selected-client hidden"></div>
+          <div id="receiptClientResults" class="client-picker"></div>
+        </div>
         <label>Fecha<input id="receiptDate" type="date" required></label>
         <label>Medio<select id="receiptMethod"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="CHEQUE">Cheque</option><option value="MIXTO">Mixto</option></select></label>
         <label>Importe<input id="receiptAmount" type="number" min="0.01" step="0.01" required></label>
@@ -157,15 +170,25 @@
         <label class="wide">Aplicar a<select id="receiptOperation"><option value="">A cuenta, sin comprobante específico</option></select></label>
         <label class="wide">Observaciones<textarea id="receiptNotes"></textarea></label>
       </div>
+      <div id="receiptMessage" class="form-message hidden" role="status" aria-live="polite"></div>
       <section id="receiptMixedFields" class="subpanel hidden"><h3>Detalle del pago mixto</h3><div class="form-grid"><label>Efectivo<input id="receiptMixedCash" type="number" min="0" step="0.01" value="0"></label><label>Transferencia<input id="receiptMixedTransfer" type="number" min="0" step="0.01" value="0"></label><label>Cheque<input id="receiptMixedCheck" type="number" min="0" step="0.01" value="0"></label><label>Referencia transferencia<input id="receiptMixedReference"></label></div></section>
       <section id="receiptCheckFields" class="subpanel hidden"><h3>Datos del cheque</h3><div class="form-grid"><label>Banco<input id="receiptCheckBank"></label><label>Número<input id="receiptCheckNumber"></label><label>Librador<input id="receiptCheckIssuer"></label><label>Vencimiento<input id="receiptCheckDue" type="date"></label></div></section>
-      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="receiptDialog">Cancelar</button><button class="btn primary big" type="submit">Guardar recibo</button></div>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="receiptDialog">Cancelar</button><button id="btnSaveReceipt" class="btn primary big" type="submit">Guardar recibo</button></div>
     </form>
+  </dialog>
+
+  <dialog id="moreDialog" class="dialog more-dialog">
+    <div class="dialog-head"><div><small>GESTIÓN</small><h2>Más opciones</h2></div><button type="button" class="dialog-close" data-close="moreDialog">×</button></div>
+    <div class="more-menu">
+      <button type="button" data-go="cheques"><span>🏦</span><div><strong>Cheques</strong><small>Vencimientos y estados</small></div><b>›</b></button>
+      <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y clientes</strong><small>Datos sincronizados de D9</small></div><b>›</b></button>
+      <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
+    </div>
   </dialog>
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
   <script src="config.js"></script>
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

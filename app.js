@@ -18,6 +18,12 @@ const number = value => new Intl.NumberFormat("es-AR", {maximumFractionDigits:3}
 const esc = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 const todayISO = () => new Date().toLocaleDateString("en-CA", {timeZone:"America/Argentina/Buenos_Aires"});
 const normalize = value => String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
+const matchesSearch = (values, query) => {
+  const tokens=normalize(query).split(" ").filter(Boolean);
+  if(!tokens.length)return true;
+  const haystack=normalize(Array.isArray(values)?values.join(" "):values);
+  return tokens.every(token=>haystack.includes(token));
+};
 const isAnnulled = value => normalize(value).includes("anulad");
 
 const state = {
@@ -111,6 +117,7 @@ function showView(name) {
   state.currentView=name;
   $$(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
   $$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
+  $("#btnMore").classList.toggle("active",["cheques","maestros","config"].includes(name));
   const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y clientes",config:"Configuración"};
   $("#viewTitle").textContent=labels[name]||"Gestión"; window.scrollTo({top:0,behavior:"smooth"});
   renderCurrentView();
@@ -152,7 +159,7 @@ function renderOrders() {
   const rows=state.source.pedidos.filter(o=>{
     const annul=isAnnulled(o.estado); if(status==="active"&&annul)return false;if(status==="annulled"&&!annul)return false;
     if(date&&orderDateValue(o)!==date)return false;
-    return !q||normalize([o.pedido_id,o.cliente,o.vendedor,...(o.items||[]).flatMap(i=>[i.nombre,i.id_producto])].join(" ")).includes(q);
+    return matchesSearch([o.pedido_id,o.cliente,o.vendedor,...(o.items||[]).flatMap(i=>[i.nombre,i.id_producto])],q);
   });
   const el=$("#ordersList"); el.className="card-list"; el.innerHTML=rows.map(o=>`
     <article class="data-card"><div><h3>${esc(o.cliente||"Sin cliente")}</h3><p>${esc(o.fecha||"")} · ${esc(o.vendedor||"Sin vendedor")}</p><div class="meta"><span class="pill">${esc(o.pedido_id)}</span><span class="pill">${(o.items||[]).length} productos</span>${isAnnulled(o.estado)?'<span class="pill red">Anulado</span>':''}</div></div><div class="card-side"><strong>${money(o.total||o.total_pedido)}</strong><div class="row-actions"><button class="mini-btn" data-order-detail="${esc(o.pedido_id)}">Ver</button>${!isAnnulled(o.estado)?`<button class="mini-btn primary" data-order-import="${esc(o.pedido_id)}">Crear comprobante</button>`:""}</div></div></article>`).join("")||'<div class="empty">No hay pedidos con esos filtros.</div>';
@@ -162,7 +169,7 @@ function renderOperations() {
   const q=normalize($("#operationsSearch").value), status=$("#operationsStatus").value;
   const rows=[...state.gestion.operaciones].sort((a,b)=>String(b.created_at||b.fecha).localeCompare(String(a.created_at||a.fecha))).filter(o=>{
     const annul=isAnnulled(o.estado); if(status==="active"&&annul)return false;if(status==="annulled"&&!annul)return false;
-    return !q||normalize([o.numero,o.tipo,o.cliente,o.origen_pedido_id].join(" ")).includes(q);
+    return matchesSearch([o.numero,o.tipo,o.cliente,o.origen_pedido_id],q);
   });
   $("#operationsList").className="card-list"; $("#operationsList").innerHTML=rows.map(o=>`
     <article class="data-card"><div><h3>${esc(o.tipo||"COMPROBANTE")} ${esc(o.numero||"")}</h3><p>${esc(o.cliente||"")} · ${formatDate(o.fecha)}</p><div class="meta">${o.origen_pedido_id?`<span class="pill">Pedido ${esc(o.origen_pedido_id)}</span>`:'<span class="pill">Carga manual</span>'}<span class="pill ${numeric(o.saldo)>0?'amber':'green'}">${numeric(o.saldo)>0?`Saldo ${money(o.saldo)}`:"Pagado"}</span>${isAnnulled(o.estado)?'<span class="pill red">Anulado</span>':''}</div></div><div class="card-side"><strong>${money(o.total)}</strong><div class="row-actions"><button class="mini-btn" data-operation-detail="${esc(o.operacion_id)}">Ver</button><button class="mini-btn primary" data-operation-print="${esc(o.operacion_id)}">Imprimir</button>${!isAnnulled(o.estado)?`<button class="mini-btn danger" data-operation-annul="${esc(o.operacion_id)}">Anular</button>`:""}</div></div></article>`).join("")||'<div class="empty">Todavía no hay comprobantes.</div>';
@@ -170,28 +177,36 @@ function renderOperations() {
 
 function renderAccounts() {
   const q=normalize($("#accountsSearch").value), filter=$("#accountsFilter").value;
-  const rows=accountRows().filter(a=>{if(filter==="debt"&&a.saldo<=.005)return false;if(filter==="credit"&&a.saldo>=-.005)return false;return !q||normalize(a.cliente).includes(q)});
+  const rows=accountRows().filter(a=>{if(filter==="debt"&&a.saldo<=.005)return false;if(filter==="credit"&&a.saldo>=-.005)return false;return matchesSearch(a.cliente,q)});
   $("#accountsList").className="card-list"; $("#accountsList").innerHTML=rows.map(a=>`<article class="data-card"><div><h3>${esc(a.cliente)}</h3><p>${a.movimientos.length} movimientos · Debe ${money(a.debe)} · Pagó ${money(a.haber)}</p></div><div class="card-side"><strong class="${a.saldo>0?'debt':''}">${money(a.saldo)}</strong><div class="row-actions"><button class="mini-btn" data-account-detail="${esc(a.cliente_id)}">Ver movimientos</button><button class="mini-btn primary" data-account-receipt="${esc(a.cliente_id)}">Ingresar pago</button></div></div></article>`).join("")||'<div class="empty">No hay cuentas con ese filtro.</div>';
 }
 
 function renderReceipts() {
+  renderReceiptDebtors();
   const q=normalize($("#receiptsSearch").value);
-  const rows=[...state.gestion.recibos].sort((a,b)=>String(b.created_at||b.fecha).localeCompare(String(a.created_at||a.fecha))).filter(r=>!q||normalize([r.numero,r.cliente,r.recibo_id].join(" ")).includes(q));
+  const rows=[...state.gestion.recibos].sort((a,b)=>String(b.created_at||b.fecha).localeCompare(String(a.created_at||a.fecha))).filter(r=>matchesSearch([r.numero,r.cliente,r.recibo_id],q));
   $("#receiptsList").className="card-list"; $("#receiptsList").innerHTML=rows.map(r=>`<article class="data-card"><div><h3>Recibo ${esc(r.numero||"")}</h3><p>${esc(r.cliente||"")} · ${formatDate(r.fecha)}</p><div class="meta"><span class="pill">${esc(r.medio_principal||"Pago")}</span>${r.operacion_numero?`<span class="pill">Aplicado a ${esc(r.operacion_numero)}</span>`:'<span class="pill">A cuenta</span>'}${isAnnulled(r.estado)?'<span class="pill red">Anulado</span>':''}</div></div><div class="card-side"><strong>${money(r.total)}</strong><div class="row-actions"><button class="mini-btn" data-receipt-detail="${esc(r.recibo_id)}">Ver</button><button class="mini-btn primary" data-receipt-print="${esc(r.recibo_id)}">Imprimir</button></div></div></article>`).join("")||'<div class="empty">Todavía no hay recibos.</div>';
+}
+
+function renderReceiptDebtors() {
+  const q=normalize($("#receiptDebtsSearch").value);
+  const rows=accountRows().filter(a=>a.saldo>.005&&matchesSearch(a.cliente,q));
+  $("#receiptDebtsList").className="compact-list";
+  $("#receiptDebtsList").innerHTML=rows.map(a=>`<div class="compact-item debt-pick-row"><div><strong>${esc(a.cliente)}</strong><small>${a.movimientos.length} movimientos pendientes</small></div><div class="row-actions"><b>${money(a.saldo)}</b><button type="button" class="mini-btn primary" data-account-receipt="${esc(a.cliente_id)}">Cobrar</button></div></div>`).join("")||'<div class="empty">No hay clientes con saldo para esa búsqueda.</div>';
 }
 
 function daysFromToday(date) { if(!date)return 99999; const a=new Date(`${todayISO()}T00:00:00`),b=new Date(`${String(date).slice(0,10)}T00:00:00`); return Math.round((b-a)/86400000); }
 function renderChecks() {
   const q=normalize($("#checksSearch").value), filter=$("#checksStatus").value;
-  const rows=[...state.gestion.cheques].sort((a,b)=>String(a.fecha_vencimiento).localeCompare(String(b.fecha_vencimiento))).filter(c=>{const st=String(c.estado||"").toUpperCase();if(filter==="active"&&["COBRADO","RECHAZADO","ANULADO"].includes(st))return false;if(filter==="rejected"&&st!=="RECHAZADO")return false;return !q||normalize([c.banco,c.numero,c.cliente,c.librador].join(" ")).includes(q)});
+  const rows=[...state.gestion.cheques].sort((a,b)=>String(a.fecha_vencimiento).localeCompare(String(b.fecha_vencimiento))).filter(c=>{const st=String(c.estado||"").toUpperCase();if(filter==="active"&&["COBRADO","RECHAZADO","ANULADO"].includes(st))return false;if(filter==="rejected"&&st!=="RECHAZADO")return false;return matchesSearch([c.banco,c.numero,c.cliente,c.librador],q)});
   $("#checksList").className="card-list"; $("#checksList").innerHTML=rows.map(c=>{const due=daysFromToday(c.fecha_vencimiento);return `<article class="data-card"><div><h3>${esc(c.banco||"Cheque")} · ${esc(c.numero||"Sin número")}</h3><p>${esc(c.cliente||"")} · Librador: ${esc(c.librador||"—")}</p><div class="meta"><span class="pill ${due<0?'red':due<=7?'amber':''}">Vence ${formatDate(c.fecha_vencimiento)}</span><span class="pill">${esc(c.estado||"EN_CARTERA")}</span></div></div><div class="card-side"><strong>${money(c.importe)}</strong><div class="row-actions">${!["COBRADO","RECHAZADO","ANULADO"].includes(String(c.estado||"").toUpperCase())?`<button class="mini-btn primary" data-check-status="${esc(c.cheque_id)}" data-status="COBRADO">Cobrado</button><button class="mini-btn danger" data-check-status="${esc(c.cheque_id)}" data-status="RECHAZADO">Rechazado</button>`:""}</div></div></article>`}).join("")||'<div class="empty">No hay cheques con ese filtro.</div>';
 }
 
 function renderMasters() {
   const q=normalize($("#mastersSearch").value); let rows=[];
-  if(state.masterTab==="clients") rows=state.source.clientes.filter(c=>!q||normalize([c.id,c.nombre,c.ciudad,c.telefono].join(" ")).includes(q)).map(c=>`<article class="data-card"><div><h3>${esc(c.nombre)}</h3><p>${esc(c.direccion||"")} ${esc(c.ciudad||"")}</p><div class="meta"><span class="pill">ID ${esc(c.id)}</span><span class="pill">${esc(c.lista_precio||"lista_1")}</span></div></div><div class="card-side"><span>${esc(c.telefono||"")}</span></div></article>`);
-  if(state.masterTab==="products") rows=state.source.productos.filter(p=>!q||normalize([p.id,p.nombre,p.categoria,p.marca].join(" ")).includes(q)).slice(0,300).map(p=>`<article class="data-card"><div><h3>${esc(p.nombre)}</h3><p>${esc(p.categoria||"")} · ${esc(p.marca||"Sin marca")}</p><div class="meta"><span class="pill">${esc(p.id)}</span></div></div><div class="card-side"><strong>${money(p.lista_1)}</strong></div></article>`);
-  if(state.masterTab==="users") rows=state.source.usuarios.filter(u=>!q||normalize([u.id,u.usuario,u.nombre,u.rol].join(" ")).includes(q)).map(u=>`<article class="data-card"><div><h3>${esc(u.nombre)}</h3><p>${esc(u.usuario)} · ${esc(u.rol)}</p><div class="meta"><span class="pill">ID ${esc(u.id)}</span></div></div></article>`);
+  if(state.masterTab==="clients") rows=state.source.clientes.filter(c=>matchesSearch([c.id,c.nombre,c.ciudad,c.telefono],q)).map(c=>`<article class="data-card"><div><h3>${esc(c.nombre)}</h3><p>${esc(c.direccion||"")} ${esc(c.ciudad||"")}</p><div class="meta"><span class="pill">ID ${esc(c.id)}</span><span class="pill">${esc(c.lista_precio||"lista_1")}</span></div></div><div class="card-side"><span>${esc(c.telefono||"")}</span></div></article>`);
+  if(state.masterTab==="products") rows=state.source.productos.filter(p=>matchesSearch([p.id,p.nombre,p.categoria,p.marca],q)).slice(0,300).map(p=>`<article class="data-card"><div><h3>${esc(p.nombre)}</h3><p>${esc(p.categoria||"")} · ${esc(p.marca||"Sin marca")}</p><div class="meta"><span class="pill">${esc(p.id)}</span></div></div><div class="card-side"><strong>${money(p.lista_1)}</strong></div></article>`);
+  if(state.masterTab==="users") rows=state.source.usuarios.filter(u=>matchesSearch([u.id,u.usuario,u.nombre,u.rol],q)).map(u=>`<article class="data-card"><div><h3>${esc(u.nombre)}</h3><p>${esc(u.usuario)} · ${esc(u.rol)}</p><div class="meta"><span class="pill">ID ${esc(u.id)}</span></div></div></article>`);
   $("#mastersList").className="card-list"; $("#mastersList").innerHTML=rows.join("")||'<div class="empty">Sin resultados.</div>';
 }
 
@@ -201,7 +216,7 @@ function renderAll() { renderHome(); if(state.currentView!=="home")renderCurrent
 function populateSelectors() {
   const clients=[...state.source.clientes].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"));
   const options='<option value="">Seleccionar cliente…</option>'+clients.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}${c.ciudad?` · ${esc(c.ciudad)}`:""}</option>`).join("");
-  $("#opClient").innerHTML=options; $("#receiptClient").innerHTML=options;
+  $("#opClient").innerHTML=options;
 }
 function productOptions(selected="") { return '<option value="">Seleccionar producto…</option>'+state.source.productos.filter(p=>numeric(p.lista_1)>0).map(p=>`<option value="${esc(p.id)}" ${String(p.id)===String(selected)?"selected":""}>${esc(p.nombre)} · ${money(p.lista_1)}</option>`).join(""); }
 
@@ -230,12 +245,54 @@ async function saveOperation(event) {
   try{const data=await apiPost("create_operacion",payload);$("#operationDialog").close();toast(`Comprobante ${data.numero} guardado`);await loadAll();showOperationDetail(data.operacion_id,false);}catch(err){toast(err.message,"error")}finally{btn.disabled=false;btn.textContent="Guardar comprobante";}
 }
 
-function openReceipt(clientId="") { $("#receiptForm").reset();$("#receiptDate").value=todayISO();$("#receiptClient").value=clientId;$("#receiptAmount").readOnly=false;$("#receiptMixedFields").classList.add("hidden");$("#receiptCheckFields").classList.add("hidden");updateReceiptOperations();$("#receiptDialog").showModal(); }
-function updateReceiptOperations(){const cid=$("#receiptClient").value;$("#receiptOperation").innerHTML='<option value="">A cuenta, sin comprobante específico</option>'+activeOperations().filter(o=>String(o.cliente_id)===String(cid)&&numeric(o.saldo)>.005).map(o=>`<option value="${esc(o.operacion_id)}">${esc(o.tipo)} ${esc(o.numero)} · saldo ${money(o.saldo)}</option>`).join("");}
+function setReceiptMessage(message="",type=""){
+  const el=$("#receiptMessage");el.textContent=message;el.className=`form-message ${type}`.trim();el.classList.toggle("hidden",!message);
+}
+function debtAccounts(){return accountRows().filter(a=>a.saldo>.005)}
+function renderReceiptClientPicker(query=""){
+  const selectedId=$("#receiptClient").value,q=normalize(query);
+  const rows=debtAccounts().filter(a=>matchesSearch(a.cliente,q)).slice(0,20);
+  $("#receiptClientResults").innerHTML=rows.map(a=>`<button type="button" class="client-pick ${String(a.cliente_id)===String(selectedId)?"selected":""}" data-receipt-client="${esc(a.cliente_id)}"><span><strong>${esc(a.cliente)}</strong><small>Saldo pendiente</small></span><b>${money(a.saldo)}</b></button>`).join("")||'<div class="empty compact-empty">No encontré clientes con deuda.</div>';
+}
+function selectReceiptClient(clientId){
+  const account=debtAccounts().find(a=>String(a.cliente_id)===String(clientId));
+  $("#receiptClient").value=account?.cliente_id||"";
+  $("#receiptClientSearch").value=account?.cliente||"";
+  const selected=$("#receiptClientSelected");
+  selected.innerHTML=account?`<span><strong>${esc(account.cliente)}</strong><small>Saldo pendiente</small></span><b>${money(account.saldo)}</b>`:"";
+  selected.classList.toggle("hidden",!account);
+  renderReceiptClientPicker(account?account.cliente:$("#receiptClientSearch").value);
+  updateReceiptOperations();setReceiptMessage();
+}
+function openReceipt(clientId="") {
+  $("#receiptForm").reset();$("#receiptClient").value="";$("#receiptDate").value=todayISO();$("#receiptAmount").readOnly=false;$("#receiptMixedFields").classList.add("hidden");$("#receiptCheckFields").classList.add("hidden");setReceiptMessage();
+  if(clientId)selectReceiptClient(clientId);else{$("#receiptClientSelected").classList.add("hidden");renderReceiptClientPicker();updateReceiptOperations()}
+  $("#receiptDialog").showModal();setTimeout(()=>$("#receiptClientSearch").focus(),80);
+}
+function updateReceiptOperations(){
+  const cid=$("#receiptClient").value;
+  const ops=activeOperations().filter(o=>String(o.cliente_id)===String(cid)&&numeric(o.saldo)>.005);
+  $("#receiptOperation").innerHTML='<option value="">A cuenta, sin comprobante específico</option>'+ops.map(o=>`<option value="${esc(o.operacion_id)}">${esc(o.tipo)} ${esc(o.numero)} · saldo ${money(o.saldo)}</option>`).join("");
+  if(ops.length===1){$("#receiptOperation").value=ops[0].operacion_id;$("#receiptAmount").value=numeric(ops[0].saldo).toFixed(2)}
+  else if(!cid)$("#receiptAmount").value="";
+}
 function readCheckFields(prefix){return {banco:$(`#${prefix}CheckBank`).value.trim(),numero:$(`#${prefix}CheckNumber`).value.trim(),librador:$(`#${prefix}CheckIssuer`).value.trim(),fecha_vencimiento:$(`#${prefix}CheckDue`).value};}
 function readPayments(prefix){const method=$(prefix==="op"?"#opPaymentMethod":"#receiptMethod").value,amountEl=$(prefix==="op"?"#opPaidAmount":"#receiptAmount"),reference=$(prefix==="op"?"#opPaymentReference":"#receiptReference").value.trim();if(method==="CUENTA_CORRIENTE")return[];if(method!=="MIXTO"){const importe=Number(amountEl.value)||0;return importe>0?[{medio:method,importe,referencia,cheque:method==="CHEQUE"?readCheckFields(prefix):null}]:[];}const cash=Number($(`#${prefix}MixedCash`).value)||0,transfer=Number($(`#${prefix}MixedTransfer`).value)||0,check=Number($(`#${prefix}MixedCheck`).value)||0;return [{medio:"EFECTIVO",importe:cash,referencia:""},{medio:"TRANSFERENCIA",importe:transfer,referencia:$(`#${prefix}MixedReference`).value.trim()},{medio:"CHEQUE",importe:check,referencia:"",cheque:readCheckFields(prefix)}].filter(p=>p.importe>0)}
 function updateReceiptMixed(){if($("#receiptMethod").value==="MIXTO")$("#receiptAmount").value=mixedTotal("receipt")}
-async function saveReceipt(event){event.preventDefault();const client=clientById($("#receiptClient").value);if(!client)return toast("Elegí un cliente.","error");const payments=readPayments("receipt"),amount=payments.reduce((s,p)=>s+Number(p.importe),0);if(amount<=0)return toast("Ingresá el importe recibido.","error");const payload={fecha:$("#receiptDate").value,cliente_id:client.id,cliente:client.nombre,importe:amount,pagos:payments,operacion_id:$("#receiptOperation").value,observaciones:$("#receiptNotes").value.trim()};try{const data=await apiPost("create_recibo",payload);$("#receiptDialog").close();toast(`Recibo ${data.numero} guardado`);await loadAll();showReceiptDetail(data.recibo_id,false);}catch(err){toast(err.message,"error")}}
+async function saveReceipt(event){
+  event.preventDefault();const btn=$("#btnSaveReceipt");setReceiptMessage();
+  try{
+    const client=clientById($("#receiptClient").value);if(!client)throw new Error("Elegí un cliente con saldo pendiente.");
+    if(!$("#receiptDate").value)throw new Error("Elegí la fecha del recibo.");
+    const payments=readPayments("receipt"),amount=payments.reduce((s,p)=>s+numeric(p.importe),0);if(amount<=0)throw new Error("Ingresá el importe recibido.");
+    if($("#receiptMethod").value==="CHEQUE"){const c=readCheckFields("receipt");if(!c.banco||!c.numero||!c.fecha_vencimiento)throw new Error("Para el cheque faltan banco, número o vencimiento.")}
+    const op=activeOperations().find(o=>String(o.operacion_id)===String($("#receiptOperation").value));if(op&&amount>numeric(op.saldo)+.01)throw new Error(`El pago supera el saldo de ${money(op.saldo)}.`);
+    const payload={fecha:$("#receiptDate").value,cliente_id:client.id,cliente:client.nombre,importe:amount,pagos:payments,operacion_id:$("#receiptOperation").value,observaciones:$("#receiptNotes").value.trim()};
+    btn.disabled=true;btn.textContent="Guardando…";setReceiptMessage("Guardando el recibo…","working");
+    const data=await apiPost("create_recibo",payload);$("#receiptDialog").close();toast(`Recibo ${data.numero} guardado`);await loadAll();showReceiptDetail(data.recibo_id,false);
+  }catch(err){setReceiptMessage(err.message||"No se pudo guardar el recibo.","error");}
+  finally{btn.disabled=false;btn.textContent="Guardar recibo"}
+}
 
 function showOrderDetail(id){const o=state.source.pedidos.find(x=>String(x.pedido_id)===String(id));if(!o)return;openDetail(`Pedido ${o.pedido_id}`,detailHeader([["Fecha",o.fecha],["Cliente",o.cliente],["Vendedor",o.vendedor],["Total",money(o.total||o.total_pedido)]])+itemsTable(o.items||[]),`<button class="btn primary" data-order-import="${esc(o.pedido_id)}">Crear comprobante</button>`)}
 function showOperationDetail(id,autoPrint=false){const o=state.gestion.operaciones.find(x=>String(x.operacion_id)===String(id));if(!o)return;const html=detailHeader([["Número",`${o.tipo} ${o.numero}`],["Fecha",formatDate(o.fecha)],["Cliente",o.cliente],["Estado",o.estado],["Total",money(o.total)],["Saldo",money(o.saldo)]])+itemsTable(operationItems(id))+`<p>${esc(o.observaciones||"")}</p>`;openDetail(`${o.tipo} ${o.numero}`,html,`<button class="btn primary" data-operation-print="${esc(id)}">Imprimir A5</button>`);if(autoPrint)setTimeout(()=>printOperation(id),250)}
@@ -257,12 +314,13 @@ async function updateCheck(id,status){if(!confirm(`¿Marcar el cheque como ${sta
 
 function bindEvents(){
   $("#loginForm").addEventListener("submit",login);$("#btnLogout").addEventListener("click",()=>{clearSession();showLogin()});$("#btnRefresh").addEventListener("click",loadAll);$("#homeLogo").addEventListener("click",()=>showView("home"));
-  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go)showView(go.dataset.go);const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op)showOperationDetail(op.dataset.operationDetail);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
+  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go)}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op)showOperationDetail(op.dataset.operationDetail);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
   ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
   $("#btnAddItem").addEventListener("click",()=>{syncDraftFromDom();state.draftItems.push({id_producto:"",nombre:"",cantidad:1,precio:0});renderDraftItems();updateOperationTotal()});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("change",e=>{if(e.target.matches("[data-item-product]")){const row=e.target.closest(".item-row"),i=Number(row.dataset.itemIndex),p=productById(e.target.value);state.draftItems[i].id_producto=e.target.value;state.draftItems[i].nombre=p?.nombre||"";state.draftItems[i].precio=Number(p?.lista_1)||0;renderDraftItems();updateOperationTotal()}});$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);if(!state.draftItems.length)state.draftItems.push({id_producto:"",nombre:"",cantidad:1,precio:0});renderDraftItems();updateOperationTotal()}});
-  ["#opDiscount","#opPaidAmount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaymentMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptClient").addEventListener("change",updateReceiptOperations);
+  ["#opDiscount","#opPaidAmount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaymentMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
   $("#btnOccasionalClient").addEventListener("click",()=>toast("En la primera versión los clientes nuevos se cargan desde el maestro para conservar un único ID."));
-  [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
+  [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
+  $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());
   $("#btnReloadOrders").addEventListener("click",loadAll);$$("[data-master-tab]").forEach(b=>b.addEventListener("click",()=>{$$("[data-master-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.masterTab=b.dataset.masterTab;renderMasters()}));
 }
 
