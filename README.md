@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.1.8-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.1.9-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -10,7 +10,7 @@ Versión actual: `v0.1.8-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Lectura de pedidos, clientes, productos, listas y usuarios desde la Sheet central.
 - Conversión de pedidos en remitos, proformas o notas de venta.
 - Creación manual de comprobantes.
-- Impresión en media hoja A4 (A5).
+- Impresión compacta en medias hojas de un A4 vertical, con encabezado repetido y continuación automática cuando no entran todos los productos.
 - Pago inicial, pago mixto o saldo en cuenta corriente.
 - Recibos posteriores y aplicación a comprobantes.
 - Cobranza guiada desde clientes con saldo pendiente.
