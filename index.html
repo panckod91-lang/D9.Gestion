@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -59,10 +59,10 @@
         <section id="view-home" class="view active">
           <div class="welcome-row"><div><small id="todayLabel"></small><h2>Hola, <span id="welcomeName">Ale</span></h2><p>Esto es lo importante de hoy.</p></div><button id="btnNewOperation" class="btn primary big">＋ Nuevo comprobante</button></div>
           <div class="kpi-grid">
-            <article class="kpi blue"><span>Pedidos de hoy</span><strong id="kpiOrders">0</strong><small>desde D9 Pedidos</small></article>
-            <article class="kpi green"><span>Comprobantes de hoy</span><strong id="kpiOperations">0</strong><small id="kpiOperationsAmount">$ 0</small></article>
-            <article class="kpi amber"><span>Saldo pendiente</span><strong id="kpiDebt">$ 0</strong><small>cuentas corrientes</small></article>
-            <article class="kpi violet"><span>Cheques próximos</span><strong id="kpiChecks">0</strong><small>en los próximos 7 días</small></article>
+            <button type="button" class="kpi kpi-link blue" data-go="pedidos"><span>Pedidos de hoy</span><strong id="kpiOrders">0</strong><small>desde D9 Pedidos</small></button>
+            <button type="button" class="kpi kpi-link green" data-go="operaciones"><span>Comprobantes de hoy</span><strong id="kpiOperations">0</strong><small id="kpiOperationsAmount">$ 0</small></button>
+            <button type="button" class="kpi kpi-link amber" data-go="cuentas"><span>Saldo pendiente</span><strong id="kpiDebt">$ 0</strong><small>cuentas corrientes</small></button>
+            <button type="button" class="kpi kpi-link violet" data-go="cheques"><span>Cheques próximos</span><strong id="kpiChecks">0</strong><small>en los próximos 7 días</small></button>
           </div>
           <div class="home-columns">
             <article class="panel"><div class="panel-head"><div><h3>Pedidos recientes</h3><p>Convertí un pedido sin volver a cargarlo.</p></div><button class="link-button" data-go="pedidos">Ver todos</button></div><div id="homeOrders" class="compact-list empty">Sin pedidos.</div></article>
@@ -189,6 +189,6 @@
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
   <script src="config.js"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
