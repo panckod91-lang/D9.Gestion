@@ -3,6 +3,7 @@
 const CONFIG = window.D9_GESTION_CONFIG || {};
 const API_URL = String(CONFIG.API_URL || "").trim();
 const STORAGE = { token:"d9g_token", user:"d9g_user" };
+const DATA_CACHE = { db:"d9_gestion_local", store:"snapshots", key:"bootstrap", version:1 };
 const $ = (s, root=document) => root.querySelector(s);
 const $$ = (s, root=document) => [...root.querySelectorAll(s)];
 const numeric = value => {
@@ -34,8 +35,27 @@ const state = {
   currentView:"home",
   masterTab:"clients",
   draftItems:[],
-  currentOrder:null
+  currentOrder:null,
+  cacheLoaded:false
 };
+
+function openDataCache() {
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB)return reject(new Error("IndexedDB no disponible"));
+    const request=indexedDB.open(DATA_CACHE.db,DATA_CACHE.version);
+    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(DATA_CACHE.store))db.createObjectStore(DATA_CACHE.store)};
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+  });
+}
+async function readDataCache(){
+  try{const db=await openDataCache();return await new Promise((resolve,reject)=>{const tx=db.transaction(DATA_CACHE.store,"readonly"),request=tx.objectStore(DATA_CACHE.store).get(DATA_CACHE.key);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);tx.oncomplete=()=>db.close()})}catch(_){return null}
+}
+async function writeDataCache(data){
+  try{const db=await openDataCache();await new Promise((resolve,reject)=>{const tx=db.transaction(DATA_CACHE.store,"readwrite");tx.objectStore(DATA_CACHE.store).put(data,DATA_CACHE.key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close()}catch(_){}
+}
+function cacheUserKey(){return String(state.user?.id||state.user?.usuario||"")}
+function currentSnapshot(){return {source:state.source,gestion:state.gestion}}
+function saveCurrentCache(){void writeDataCache({userKey:cacheUserKey(),savedAt:Date.now(),data:currentSnapshot()})}
 
 function toast(message, type="") {
   const el = $("#toast"); el.textContent = message; el.className = `toast ${type}`.trim();
@@ -89,27 +109,37 @@ async function login(event) {
   const button=$("#loginForm button"); button.disabled=true; button.textContent="Ingresando…";
   try {
     const data=await apiPost("login",{usuario:$("#loginUser").value.trim(),clave:$("#loginPassword").value});
-    saveSession(data); showApp(); await loadAll();
+    saveSession(data);showApp();const cached=await showCachedData();await loadAll({silent:cached});
   } catch(err) { showLogin(err.message); }
   finally { button.disabled=false; button.textContent="Ingresar"; }
 }
 
-async function loadAll() {
-  setSync("Sincronizando…");
+function applyBootstrap(data) {
+  state.source={
+    clientes:data.source?.clientes||[], productos:data.source?.productos||[], usuarios:data.source?.usuarios||[], pedidos:data.source?.pedidos||[]
+  };
+  state.gestion={
+    operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], config:data.gestion?.config||{}
+  };
+  hydrateConfig();populateSelectors();renderAll();
+}
+async function showCachedData() {
+  const cached=await readDataCache();
+  if(!cached?.data||cached.userKey!==cacheUserKey())return false;
+  applyBootstrap(cached.data);state.cacheLoaded=true;
+  const time=cached.savedAt?new Date(cached.savedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}):"";
+  setSync(time?`Datos guardados ${time} · actualizando…`:"Datos guardados · actualizando…");
+  return true;
+}
+async function loadAll(options={}) {
+  if(!options.silent)setSync("Sincronizando…");
   try {
     const data=await apiGet("bootstrap");
-    state.source={
-      clientes:data.source?.clientes||[], productos:data.source?.productos||[], usuarios:data.source?.usuarios||[], pedidos:data.source?.pedidos||[]
-    };
-    state.gestion={
-      operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], config:data.gestion?.config||{}
-    };
+    applyBootstrap(data);state.cacheLoaded=true;saveCurrentCache();
     setSync(`Actualizado ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`);
-    hydrateConfig(); populateSelectors(); renderAll();
   } catch(err) {
-    setSync("Error de conexión",true);
     if (/sesión|token|autoriz/i.test(err.message)) { clearSession(); showLogin("La sesión venció. Volvé a ingresar."); }
-    else toast(err.message,"error");
+    else {setSync(state.cacheLoaded?"Datos guardados · sin conexión":"Error de conexión",true);toast(err.message,"error")}
   }
 }
 
@@ -239,6 +269,13 @@ function syncDraftFromDom() { $$(".item-row").forEach(row=>{const i=Number(row.d
 function operationTotal() { const sub=state.draftItems.reduce((s,i)=>s+Number(i.cantidad||0)*Number(i.precio||0),0);return sub*(1-(Number($("#opDiscount").value)||0)/100); }
 function mixedTotal(prefix){return ["Cash","Transfer","Check"].reduce((s,k)=>s+(Number($(`#${prefix}Mixed${k}`).value)||0),0)}
 function updateOperationTotal() { syncDraftFromDom(); const total=operationTotal();if($("#opPaymentMethod").value==="MIXTO")$("#opPaidAmount").value=mixedTotal("op");const paid=Math.min(total,Number($("#opPaidAmount").value)||0); $("#opTotal").textContent=money(total); $("#opBalance").textContent=`Saldo: ${money(total-paid)}`; $$(".item-row").forEach((r,i)=>$(".line-total",r).textContent=money(Number(state.draftItems[i].cantidad)*Number(state.draftItems[i].precio))); }
+function stageCreatedOperation(data,payload,total,paid){
+  const now=new Date().toISOString(),subtotal=payload.items.reduce((sum,item)=>sum+numeric(item.cantidad)*numeric(item.precio),0);
+  state.gestion.operaciones.push({operacion_id:data.operacion_id,numero:data.numero,tipo:payload.tipo,fecha:payload.fecha,cliente_id:payload.cliente_id,cliente:payload.cliente,origen_tipo:payload.origen_pedido_id?"PEDIDO":"MANUAL",origen_pedido_id:payload.origen_pedido_id,usuario_id:state.user?.id||"",usuario:state.user?.nombre||"",estado:"VIGENTE",subtotal,descuento_pct:payload.descuento_pct,total,saldo:Math.max(0,total-paid),observaciones:payload.observaciones,created_at:now,updated_at:now});
+  state.gestion.items.push(...payload.items.map((item,index)=>({item_id:`LOCAL-IT-${index}`,operacion_id:data.operacion_id,orden:index+1,producto_id:item.id_producto,producto:item.nombre,cantidad:item.cantidad,precio_unitario:item.precio,descuento_pct:0,subtotal:numeric(item.cantidad)*numeric(item.precio)})));
+  saveCurrentCache();
+}
+function refreshAfterMutation(){setSync("Guardado · actualizando…");void loadAll({silent:true})}
 async function saveOperation(event) {
   event.preventDefault(); syncDraftFromDom();
   const items=state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!items.length)return toast("Agregá al menos un producto.","error");
@@ -246,7 +283,7 @@ async function saveOperation(event) {
   const total=operationTotal(),payments=readPayments("op"),paid=payments.reduce((s,p)=>s+Number(p.importe),0);if(paid>total+.01)return toast("El pago inicial no puede superar el total.","error");if($("#opPaymentMethod").value!=="CUENTA_CORRIENTE"&&!payments.length)return toast("Ingresá el importe pagado.","error");
   const payload={tipo:$("#opType").value,fecha:$("#opDate").value,cliente_id:cliente.id,cliente:cliente.nombre,origen_pedido_id:$("#opSourceOrder").value,descuento_pct:Number($("#opDiscount").value)||0,observaciones:$("#opNotes").value.trim(),items,pagos_iniciales:payments};
   const btn=$("#btnSaveOperation");btn.disabled=true;btn.textContent="Guardando…";
-  try{const data=await apiPost("create_operacion",payload);$("#operationDialog").close();toast(`Comprobante ${data.numero} guardado`);await loadAll();showOperationDetail(data.operacion_id,false);}catch(err){toast(err.message,"error")}finally{btn.disabled=false;btn.textContent="Guardar comprobante";}
+  try{const data=await apiPost("create_operacion",payload);stageCreatedOperation(data,payload,total,paid);$("#operationDialog").close();toast(`Comprobante ${data.numero} guardado`);showOperationDetail(data.operacion_id,false);refreshAfterMutation();}catch(err){toast(err.message,"error")}finally{btn.disabled=false;btn.textContent="Guardar comprobante";}
 }
 
 function setReceiptMessage(message="",type=""){
@@ -287,6 +324,14 @@ function updateReceiptOperations(){
 function readCheckFields(prefix){return {banco:$(`#${prefix}CheckBank`).value.trim(),numero:$(`#${prefix}CheckNumber`).value.trim(),librador:$(`#${prefix}CheckIssuer`).value.trim(),fecha_vencimiento:$(`#${prefix}CheckDue`).value};}
 function readPayments(prefix){const method=$(prefix==="op"?"#opPaymentMethod":"#receiptMethod").value,amountEl=$(prefix==="op"?"#opPaidAmount":"#receiptAmount"),reference=$(prefix==="op"?"#opPaymentReference":"#receiptReference").value.trim();if(method==="CUENTA_CORRIENTE")return[];if(method!=="MIXTO"){const importe=Number(amountEl.value)||0;return importe>0?[{medio:method,importe,referencia:reference,cheque:method==="CHEQUE"?readCheckFields(prefix):null}]:[];}const cash=Number($(`#${prefix}MixedCash`).value)||0,transfer=Number($(`#${prefix}MixedTransfer`).value)||0,check=Number($(`#${prefix}MixedCheck`).value)||0;return [{medio:"EFECTIVO",importe:cash,referencia:""},{medio:"TRANSFERENCIA",importe:transfer,referencia:$(`#${prefix}MixedReference`).value.trim()},{medio:"CHEQUE",importe:check,referencia:"",cheque:readCheckFields(prefix)}].filter(p=>p.importe>0)}
 function updateReceiptMixed(){if($("#receiptMethod").value==="MIXTO")$("#receiptAmount").value=mixedTotal("receipt")}
+function stageCreatedReceipt(data,payload,payments,amount,operation){
+  const now=new Date().toISOString(),receiptId=data.recibo_id;
+  state.gestion.recibos.push({recibo_id:receiptId,numero:data.numero,fecha:payload.fecha,cliente_id:payload.cliente_id,cliente:payload.cliente,operacion_id:payload.operacion_id,operacion_numero:operation?.numero||"",medio_principal:payments.length>1?"MIXTO":payments[0].medio,total:amount,observaciones:payload.observaciones,estado:"VIGENTE",usuario_id:state.user?.id||"",usuario:state.user?.nombre||"",created_at:now});
+  payments.forEach((payment,index)=>{const paymentId=`LOCAL-PG-${index}`,checkId=payment.medio==="CHEQUE"?`LOCAL-CH-${index}`:"";state.gestion.pagos.push({pago_id:paymentId,recibo_id:receiptId,operacion_id:payload.operacion_id,cliente_id:payload.cliente_id,fecha:payload.fecha,medio:payment.medio,importe:payment.importe,referencia:payment.referencia||"",cheque_id:checkId,estado:"VIGENTE",created_at:now});if(checkId){const c=payment.cheque||{};state.gestion.cheques.push({cheque_id:checkId,pago_id:paymentId,recibo_id:receiptId,operacion_id:payload.operacion_id,cliente_id:payload.cliente_id,cliente:payload.cliente,banco:c.banco,numero:c.numero,librador:c.librador,fecha_ingreso:payload.fecha,fecha_vencimiento:c.fecha_vencimiento,importe:payment.importe,estado:"EN_CARTERA",updated_at:now})}});
+  state.gestion.movimientos.push({movimiento_id:`LOCAL-MV-${receiptId}`,fecha:payload.fecha,cliente_id:payload.cliente_id,cliente:payload.cliente,tipo:"PAGO",documento_tipo:"RECIBO",documento_id:receiptId,documento_numero:data.numero,operacion_id:payload.operacion_id,debe:0,haber:amount,estado:"VIGENTE",detalle:payments.map(p=>`${p.medio} ${p.importe}`).join(" + "),created_at:now});
+  if(operation)operation.saldo=Math.max(0,numeric(operation.saldo)-amount);
+  saveCurrentCache();
+}
 async function saveReceipt(event){
   event.preventDefault();const btn=$("#btnSaveReceipt");setReceiptMessage();
   try{
@@ -297,7 +342,7 @@ async function saveReceipt(event){
     const op=activeOperations().find(o=>String(o.operacion_id)===String($("#receiptOperation").value));if(op&&amount>numeric(op.saldo)+.01)throw new Error(`El pago supera el saldo de ${money(op.saldo)}.`);
     const payload={fecha:$("#receiptDate").value,cliente_id:client.id,cliente:client.nombre,importe:amount,pagos:payments,operacion_id:$("#receiptOperation").value,observaciones:$("#receiptNotes").value.trim()};
     btn.disabled=true;btn.textContent="Guardando…";setReceiptMessage("Guardando el recibo…","working");
-    const data=await apiPost("create_recibo",payload);$("#receiptDialog").close();toast(`Recibo ${data.numero} guardado`);await loadAll();showReceiptDetail(data.recibo_id,false);
+    const data=await apiPost("create_recibo",payload);stageCreatedReceipt(data,payload,payments,amount,op);$("#receiptDialog").close();toast(`Recibo ${data.numero} guardado`);showReceiptDetail(data.recibo_id,false);refreshAfterMutation();
   }catch(err){setReceiptMessage(err.message||"No se pudo guardar el recibo.","error");}
   finally{btn.disabled=false;btn.textContent="Guardar recibo"}
 }
@@ -335,5 +380,5 @@ function bindEvents(){
   $("#btnReloadOrders").addEventListener("click",loadAll);$$("[data-master-tab]").forEach(b=>b.addEventListener("click",()=>{$$("[data-master-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.masterTab=b.dataset.masterTab;renderMasters()}));
 }
 
-async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();await loadAll();}
+async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});}
 boot();

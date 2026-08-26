@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.1.5-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.1.8-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -21,6 +21,8 @@ Versión actual: `v0.1.5-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Anulación con contramovimiento y auditoría.
 - Numeración correlativa interna.
 - PWA responsive, pensada principalmente para escritorio.
+- Inicio inmediato desde la última copia local y actualización silenciosa en segundo plano.
+- Apertura instantánea del detalle después de confirmar un comprobante o recibo.
 
 ## Arquitectura
 
