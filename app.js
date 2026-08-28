@@ -31,7 +31,7 @@ const state = {
   token: localStorage.getItem(STORAGE.token) || "",
   user: JSON.parse(localStorage.getItem(STORAGE.user) || "null"),
   permissions: {source_admin:false,source_writes_enabled:false},
-  source: {clientes:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],pedidos:[]},
+  source: {clientes:[],clientes_admin:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],pedidos:[]},
   gestion: {operaciones:[],items:[],recibos:[],pagos:[],cheques:[],movimientos:[],config:{}},
   currentView:"home",
   draftItems:[],
@@ -133,12 +133,12 @@ function applyBootstrap(data) {
   if(data.user){state.user=data.user;localStorage.setItem(STORAGE.user,JSON.stringify(state.user));showApp()}
   state.permissions={source_admin:!!data.permissions?.source_admin,source_writes_enabled:!!data.permissions?.source_writes_enabled};
   state.source={
-    clientes:data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], pedidos:data.source?.pedidos||[]
+    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], pedidos:data.source?.pedidos||[]
   };
   state.gestion={
     operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], config:data.gestion?.config||{}
   };
-  hydrateConfig();populateSelectors();hydrateMasterFilters();renderAll();
+  hydrateConfig();populateSelectors();hydrateMasterFilters();hydrateClientFilters();renderAll();
 }
 async function showCachedData() {
   const cached=await readDataCache();
@@ -164,8 +164,8 @@ function showView(name) {
   state.currentView=name;
   $$(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
   $$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
-  $("#btnMore").classList.toggle("active",["cheques","maestros","config"].includes(name));
-  const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios",config:"Configuración"};
+  $("#btnMore").classList.toggle("active",["cheques","maestros","clientes","config"].includes(name));
+  const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios",clientes:"Clientes",config:"Configuración"};
   $("#viewTitle").textContent=labels[name]||"Gestión"; window.scrollTo({top:0,behavior:"smooth"});
   renderCurrentView();
 }
@@ -330,7 +330,72 @@ async function applyBulkPrices(event){
   finally{button.disabled=false;button.textContent="Aplicar cambios"}
 }
 
-function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters}[state.currentView]||(()=>{}))(); }
+function adminClients(){return state.source.clientes_admin?.length?state.source.clientes_admin:state.source.clientes}
+const CLIENT_FISCAL_REQUIRED=["razon_social","tipo_documento","numero_documento","condicion_iva","domicilio_fiscal","localidad_fiscal","provincia_fiscal"];
+const CLIENT_FISCAL_FIELDS=[...CLIENT_FISCAL_REQUIRED,"codigo_postal","email_facturacion","cuit"];
+function clientFiscalState(client={}){
+  const data={...client};
+  if(!data.numero_documento&&data.cuit)data.numero_documento=data.cuit;
+  if(!data.tipo_documento&&data.cuit)data.tipo_documento="CUIT";
+  const hasAny=CLIENT_FISCAL_FIELDS.some(key=>String(data[key]||"").trim());
+  if(!hasAny)return {id:"empty",label:"Sin datos fiscales",missing:CLIENT_FISCAL_REQUIRED};
+  const missing=CLIENT_FISCAL_REQUIRED.filter(key=>!String(data[key]||"").trim());
+  if((data.tipo_documento==="CUIT"||data.tipo_documento==="CUIL")&&data.numero_documento&&!validCuit(data.numero_documento))missing.push("numero_documento_invalido");
+  if(data.tipo_documento==="DNI"&&data.numero_documento){const length=onlyDigits(data.numero_documento).length;if(length<7||length>9)missing.push("numero_documento_invalido")}
+  return missing.length?{id:"incomplete",label:`Faltan ${missing.length} datos fiscales`,missing}:{id:"complete",label:"Listo para facturar",missing:[]};
+}
+function clientAssignedList(client){const assigned=String(client?.lista_precio||"lista_1").toLowerCase();return priceLists().some(list=>list.id===assigned)?assigned:"lista_1"}
+function nextClientId(){const values=adminClients().map(c=>Number(String(c.id||"").replace(/\D+/g,""))).filter(n=>Number.isFinite(n)&&n>0);return String(values.length?Math.max(...values)+1:1)}
+function onlyDigits(value){return String(value||"").replace(/\D/g,"")}
+function validCuit(value){const digits=onlyDigits(value);if(digits.length!==11)return false;const weights=[5,4,3,2,7,6,5,4,3,2];const sum=weights.reduce((total,weight,index)=>total+Number(digits[index])*weight,0);let check=11-(sum%11);if(check===11)check=0;else if(check===10)check=9;return check===Number(digits[10])}
+function readClientFiscalForm(){return {razon_social:$("#clientLegalName").value.trim(),tipo_documento:$("#clientDocumentType").value,numero_documento:$("#clientDocumentNumber").value.trim(),condicion_iva:$("#clientVatCondition").value,domicilio_fiscal:$("#clientFiscalAddress").value.trim(),localidad_fiscal:$("#clientFiscalCity").value.trim(),provincia_fiscal:$("#clientFiscalProvince").value.trim(),codigo_postal:$("#clientPostalCode").value.trim(),email_facturacion:$("#clientBillingEmail").value.trim()}}
+function updateClientFiscalStatus(){
+  const status=clientFiscalState(readClientFiscalForm()),badge=$("#clientFiscalStatus");
+  badge.textContent=status.label;badge.className=`pill ${status.id==="complete"?"green":status.id==="incomplete"?"amber":""}`;
+}
+function hydrateClientFilters(){
+  const filter=$("#clientsPriceList"),current=filter?.value;
+  if(filter){filter.innerHTML='<option value="">Todas las listas</option>'+priceLists().map(list=>`<option value="${esc(list.id)}">${esc(list.nombre)}</option>`).join("");if(current&&priceLists().some(list=>list.id===current))filter.value=current;}
+}
+function renderClients(){
+  const search=$("#clientsSearch"),listFilter=$("#clientsPriceList"),statusFilter=$("#clientsStatus"),fiscalFilter=$("#clientsFiscal");if(!search||!listFilter||!statusFilter||!fiscalFilter)return;
+  const q=search.value,list=listFilter.value,status=statusFilter.value,fiscal=fiscalFilter.value;
+  $("#clientAdminNotice").innerHTML=`<span class="helper">${!isAdmin()?"Tu sesión es de consulta; solo Ale puede modificar clientes.":sourceWritesEnabled()?"Escritura habilitada: los cambios impactan en D9_pedidos sin mover sus columnas actuales.":"Modo seguro: podés revisar clientes, pero el guardado en D9_pedidos está bloqueado."}</span>`;
+  $("#btnNewClient").disabled=!isAdmin();
+  const all=[...adminClients()].sort((a,b)=>String(a.nombre||"").localeCompare(String(b.nombre||""),"es",{sensitivity:"base",numeric:true}));
+  const rows=all.filter(client=>{
+    const active=activeValue(client.activo),fiscalState=clientFiscalState(client);
+    if(status==="active"&&!active)return false;if(status==="inactive"&&active)return false;
+    if(list&&clientAssignedList(client)!==list)return false;
+    if(fiscal!=="all"&&fiscalState.id!==fiscal)return false;
+    return matchesSearch([client.id,client.nombre,client.telefono,client.direccion,client.ciudad,client.razon_social,client.cuit,client.numero_documento,client.condicion_iva],q);
+  }).slice(0,700);
+  $("#clientsSummary").textContent=`${rows.length} mostrados · ${all.length} clientes en total`;
+  $("#clientsList").className="card-list";
+  $("#clientsList").innerHTML=rows.map(client=>{const fiscalState=clientFiscalState(client),active=activeValue(client.activo),assigned=clientAssignedList(client),document=client.numero_documento||client.cuit||"";return `<article class="data-card client-master-card ${active?"":"inactive"}"><div><h3>${esc(client.nombre||"Sin nombre")}</h3><p>${esc([client.direccion,client.ciudad,client.telefono].filter(Boolean).join(" · ")||"Sin datos comerciales adicionales")}</p><div class="meta"><span class="pill">${esc(client.id)}</span><span class="pill ${active?"green":"red"}">${active?"Activo":"Oculto"}</span><span class="pill blue">${esc(priceListLabel(assigned))}</span><span class="pill ${fiscalState.id==="complete"?"green":fiscalState.id==="incomplete"?"amber":""}">${esc(fiscalState.label)}</span>${document?`<span class="pill">${esc(client.tipo_documento||"CUIT")} ${esc(document)}</span>`:""}</div></div><div class="card-side">${client.razon_social?`<small>${esc(client.razon_social)}</small>`:""}${isAdmin()?`<button class="mini-btn primary" data-edit-client="${esc(client.id)}">Editar</button>`:""}</div></article>`}).join("")||'<div class="empty">No hay clientes con esos filtros.</div>';
+}
+function openClientEditor(clientId=""){
+  if(!isAdmin())return toast("Esta sesión no puede modificar clientes.","error");
+  const client=clientId?adminClients().find(item=>String(item.id)===String(clientId)):null;
+  $("#clientForm").reset();$("#clientForm").dataset.mode=client?"edit":"new";$("#clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
+  $("#clientId").value=client?.id||nextClientId();$("#clientId").readOnly=!!client;$("#clientName").value=client?.nombre||"";$("#clientPhone").value=client?.telefono||"";$("#clientAddress").value=client?.direccion||"";$("#clientCity").value=client?.ciudad||client?.localidad||"";$("#clientActive").value=activeValue(client?.activo??"si")?"si":"no";
+  fillPriceListSelect($("#clientPriceList"),clientAssignedList(client));
+  $("#clientLegalName").value=client?.razon_social||"";$("#clientDocumentType").value=client?.tipo_documento||(client?.cuit?"CUIT":"");$("#clientDocumentNumber").value=client?.numero_documento||client?.cuit||"";$("#clientVatCondition").value=client?.condicion_iva||"";$("#clientFiscalAddress").value=client?.domicilio_fiscal||"";$("#clientFiscalCity").value=client?.localidad_fiscal||"";$("#clientFiscalProvince").value=client?.provincia_fiscal||"";$("#clientPostalCode").value=client?.codigo_postal||"";$("#clientBillingEmail").value=client?.email_facturacion||"";
+  const fiscalState=clientFiscalState(client||{});$("#clientFiscalDetails").open=fiscalState.id!=="empty";updateClientFiscalStatus();
+  $("#btnSaveClient").disabled=!sourceWritesEnabled();$("#btnSaveClient").title=sourceWritesEnabled()?"":"Activá SOURCE_WRITES_ENABLED para guardar en la Sheet central.";$("#clientFormMessage").classList.add("hidden");$("#clientDialog").showModal();setTimeout(()=>$(client?"#clientName":"#clientId").focus(),60);
+}
+async function saveClient(event){
+  event.preventDefault();if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
+  const fiscal=readClientFiscalForm(),documentDigits=onlyDigits(fiscal.numero_documento);
+  const cliente={id:$("#clientId").value.trim(),nombre:$("#clientName").value.trim(),telefono:$("#clientPhone").value.trim(),direccion:$("#clientAddress").value.trim(),ciudad:$("#clientCity").value.trim(),lista_precio:$("#clientPriceList").value||"lista_1",activo:$("#clientActive").value,...fiscal,cuit:fiscal.tipo_documento==="CUIT"?documentDigits:""};
+  if(!cliente.id||!cliente.nombre)return toast("ID y nombre comercial son obligatorios.","error");
+  const button=$("#btnSaveClient"),message=$("#clientFormMessage");button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");
+  try{const result=await apiPost("source_save_client",{cliente,nuevo:$("#clientForm").dataset.mode==="new"});toast(result.message||"Cliente guardado");$("#clientDialog").close();await loadAll();hydrateClientFilters();renderClients()}
+  catch(err){message.textContent=err.message;message.className="form-message error";message.classList.remove("hidden")}
+  finally{button.disabled=false;button.textContent="Guardar cliente"}
+}
+
+function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,clientes:renderClients}[state.currentView]||(()=>{}))(); }
 function renderAll() { renderHome(); if(state.currentView!=="home")renderCurrentView(); }
 
 function populateSelectors() {
@@ -664,15 +729,15 @@ async function updateCheck(id,status){if(!confirm(`¿Marcar el cheque como ${sta
 
 function bindEvents(){
   $("#loginForm").addEventListener("submit",login);$("#btnLogout").addEventListener("click",()=>{clearSession();showLogin()});$("#btnRefresh").addEventListener("click",loadAll);$("#homeLogo").addEventListener("click",()=>showView("home"));
-  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go)}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const editProduct=e.target.closest("[data-edit-product]");if(editProduct)openProductEditor(editProduct.dataset.editProduct);const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op)showOperationDetail(op.dataset.operationDetail);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
+  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go)}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const editProduct=e.target.closest("[data-edit-product]");if(editProduct)openProductEditor(editProduct.dataset.editProduct);const editClient=e.target.closest("[data-edit-client]");if(editClient)openClientEditor(editClient.dataset.editClient);const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op)showOperationDetail(op.dataset.operationDetail);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});
   ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#productQuantityForm").addEventListener("submit",confirmProductQuantity);$("#productQuantityDialog").addEventListener("close",()=>{if($("#operationDialog").open)setTimeout(()=>$("#opProductSearch").focus(),30)});$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
   $("#opClientSearch").addEventListener("input",()=>{state.clientSearchIndex=0;renderOperationClientResults()});$("#opClientSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveClientSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveClientSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const client=state.clientSearchResults[state.clientSearchIndex];if(client)selectOperationClient(client.id);else if($("#opClientSearch").value.trim())toast("No encontré ese cliente.","error")}else if(e.key==="Escape"){$("#opClientSearch").value="";renderOperationClientResults()}});$("#opClientResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-client]");if(row)selectOperationClient(row.dataset.opClient)});$("#btnChangeOperationClient").addEventListener("click",startOperationClientSearch);$("#btnOccasionalClient").addEventListener("click",startOccasionalClient);$("#btnCancelOccasionalClient").addEventListener("click",startOperationClientSearch);
   $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaidAmount").addEventListener("input",()=>{state.autoPaidAmount=false;updateOperationTotal()});$("#opPaymentMethod").addEventListener("change",e=>{const method=e.target.value,mixed=method==="MIXTO",check=method==="CHEQUE"||mixed,fullPayment=["EFECTIVO","TRANSFERENCIA"].includes(method);state.autoPaidAmount=fullPayment;if(method==="CUENTA_CORRIENTE")$("#opPaidAmount").value="0";$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
-  [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
-  $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());$("#btnNewProduct").addEventListener("click",()=>openProductEditor());$("#btnBulkPrices").addEventListener("click",openBulkPrices);$("#productForm").addEventListener("submit",saveProduct);$("#bulkPriceForm").addEventListener("submit",applyBulkPrices);$("#btnRefreshBulkPreview").addEventListener("click",calculateBulkPreview);$("#mastersPriceList").addEventListener("change",renderMasters);
+  [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters],["#clientsSearch",renderClients],["#clientsPriceList",renderClients],["#clientsStatus",renderClients],["#clientsFiscal",renderClients]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
+  $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());$("#btnNewProduct").addEventListener("click",()=>openProductEditor());$("#btnBulkPrices").addEventListener("click",openBulkPrices);$("#productForm").addEventListener("submit",saveProduct);$("#bulkPriceForm").addEventListener("submit",applyBulkPrices);$("#btnRefreshBulkPreview").addEventListener("click",calculateBulkPreview);$("#mastersPriceList").addEventListener("change",renderMasters);$("#btnNewClient").addEventListener("click",()=>openClientEditor());$("#clientForm").addEventListener("submit",saveClient);$$("#clientFiscalDetails input, #clientFiscalDetails select").forEach(input=>input.addEventListener("input",updateClientFiscalStatus));
   $("#btnReloadOrders").addEventListener("click",loadAll);
 }
 

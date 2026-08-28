@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=30">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -50,6 +50,7 @@
           <button id="btnMore" class="mobile-more" type="button"><span>☰</span>Más</button>
           <button class="desktop-only" data-view="cheques"><span>🏦</span>Cheques</button>
           <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y precios</button>
+          <button class="desktop-only" data-view="clientes"><span>🏪</span>Clientes</button>
           <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
         <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span><small id="appVersion" class="app-version">—</small></div>
@@ -115,6 +116,19 @@
           </div>
           <div class="filters"><input id="mastersSearch" placeholder="Buscar código, descripción, categoría o marca"><select id="mastersPriceList"></select></div>
           <div id="mastersList" class="card-list empty">Sin datos sincronizados.</div>
+        </section>
+
+        <section id="view-clientes" class="view">
+          <div class="page-head"><div><h2>Clientes</h2><p>Datos comerciales, lista asignada y perfil fiscal de la Sheet central.</p></div><button id="btnNewClient" class="btn primary" type="button">＋ Nuevo cliente</button></div>
+          <div id="clientAdminNotice" class="admin-toolbar client-admin-notice"><span class="helper">Los datos fiscales son opcionales hasta emitir una factura legal.</span></div>
+          <div class="filters client-filters">
+            <input id="clientsSearch" type="search" placeholder="Buscar código, nombre, CUIT, teléfono o dirección">
+            <select id="clientsPriceList"><option value="">Todas las listas</option></select>
+            <select id="clientsStatus"><option value="active">Activos</option><option value="all">Todos</option><option value="inactive">Ocultos</option></select>
+            <select id="clientsFiscal"><option value="all">Todos los datos fiscales</option><option value="complete">Listos para facturar</option><option value="incomplete">Datos fiscales incompletos</option><option value="empty">Sin datos fiscales</option></select>
+          </div>
+          <p id="clientsSummary" class="list-summary"></p>
+          <div id="clientsList" class="card-list empty">Sin clientes sincronizados.</div>
         </section>
 
         <section id="view-config" class="view">
@@ -227,6 +241,7 @@
     <div class="more-menu">
       <button type="button" data-go="cheques"><span>🏦</span><div><strong>Cheques</strong><small>Vencimientos y estados</small></div><b>›</b></button>
       <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y precios</strong><small>Administración de la Sheet original</small></div><b>›</b></button>
+      <button type="button" data-go="clientes"><span>🏪</span><div><strong>Clientes</strong><small>Listas, datos comerciales y fiscales</small></div><b>›</b></button>
       <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
     </div>
     <p id="appVersionMore" class="version-more">—</p>
@@ -270,9 +285,44 @@
     </form>
   </dialog>
 
+  <dialog id="clientDialog" class="dialog wide-dialog client-dialog">
+    <form id="clientForm" method="dialog">
+      <div class="dialog-head"><div><small>MAESTRO CENTRAL</small><h2 id="clientDialogTitle">Nuevo cliente</h2></div><button type="button" class="dialog-close" data-close="clientDialog">×</button></div>
+      <section class="client-form-section">
+        <div class="section-head"><div><h3>Datos comerciales</h3><p>Son los que usan Pedidos, reparto y la cuenta corriente.</p></div></div>
+        <div class="form-grid">
+          <label>ID<input id="clientId" maxlength="60" required></label>
+          <label>Estado<select id="clientActive"><option value="si">Activo</option><option value="no">Oculto</option></select></label>
+          <label class="wide">Nombre comercial<input id="clientName" maxlength="180" required placeholder="Como se lo conoce habitualmente"></label>
+          <label>Teléfono<input id="clientPhone" maxlength="80" inputmode="tel"></label>
+          <label>Lista de precios<select id="clientPriceList"></select></label>
+          <label class="wide">Dirección de entrega<input id="clientAddress" maxlength="220"></label>
+          <label>Ciudad<input id="clientCity" maxlength="120"></label>
+        </div>
+      </section>
+      <details id="clientFiscalDetails" class="fiscal-details">
+        <summary><span><strong>Datos fiscales</strong><small>Opcionales ahora; obligatorios al emitir factura legal</small></span><span id="clientFiscalStatus" class="pill">Sin datos fiscales</span></summary>
+        <div class="form-grid fiscal-grid">
+          <label class="wide">Razón social<input id="clientLegalName" maxlength="180" placeholder="Apellido y nombre o razón social"></label>
+          <label>Tipo de documento<select id="clientDocumentType"><option value="">Sin definir</option><option value="CUIT">CUIT</option><option value="CUIL">CUIL</option><option value="CDI">CDI</option><option value="DNI">DNI</option><option value="PASAPORTE">Pasaporte</option><option value="OTRO">Otro</option></select></label>
+          <label>Número de documento<input id="clientDocumentNumber" maxlength="30" inputmode="numeric" placeholder="Sin guiones"></label>
+          <label class="wide">Condición frente al IVA<select id="clientVatCondition"><option value="">Sin definir</option><option value="RESPONSABLE_INSCRIPTO">IVA Responsable Inscripto</option><option value="MONOTRIBUTO">Responsable Monotributo</option><option value="EXENTO">IVA Sujeto Exento</option><option value="CONSUMIDOR_FINAL">Consumidor Final</option><option value="NO_CATEGORIZADO">Sujeto no categorizado</option><option value="MONOTRIBUTO_SOCIAL">Monotributista Social</option></select></label>
+          <label class="wide">Domicilio fiscal<input id="clientFiscalAddress" maxlength="220"></label>
+          <label>Localidad fiscal<input id="clientFiscalCity" maxlength="120"></label>
+          <label>Provincia<input id="clientFiscalProvince" maxlength="120"></label>
+          <label>Código postal<input id="clientPostalCode" maxlength="20"></label>
+          <label>Email de facturación<input id="clientBillingEmail" maxlength="180" type="email"></label>
+        </div>
+        <p class="fiscal-help">Gestión permitirá guardar una ficha incompleta. Cuando llegue la factura fiscal, controlará estos datos antes de solicitar el CAE.</p>
+      </details>
+      <p id="clientFormMessage" class="form-message hidden"></p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="clientDialog">Cancelar</button><button id="btnSaveClient" class="btn primary big" type="submit">Guardar cliente</button></div>
+    </form>
+  </dialog>
+
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=21"></script>
-  <script src="app.js?v=21"></script>
+  <script src="config.js?v=30"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>
