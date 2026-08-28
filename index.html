@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -52,7 +52,7 @@
           <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y clientes</button>
           <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
-        <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span></div>
+        <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span><small id="appVersion" class="app-version">—</small></div>
       </aside>
 
       <main class="content">
@@ -137,7 +137,16 @@
         <label>Fecha<input id="opDate" type="date" required></label>
         <label class="wide">Cliente<div class="combo-row"><select id="opClient" required></select><button id="btnOccasionalClient" type="button" class="btn secondary">Cliente ocasional</button></div></label>
       </div>
-      <section class="editor-section"><div class="section-head"><div><h3>Productos</h3><p>Podés cambiar cantidades y precios antes de guardar.</p></div><button id="btnAddItem" type="button" class="btn secondary">＋ Agregar producto</button></div><div id="opItems" class="item-editor"></div></section>
+      <section class="editor-section">
+        <div class="section-head"><div><h3>Productos</h3><p>Buscá por código o descripción. La cantidad puede modificarse después.</p></div></div>
+        <div class="product-quick-add">
+          <label for="opProductSearch">Carga rápida de productos</label>
+          <input id="opProductSearch" type="search" autocomplete="off" placeholder="Código o descripción · Ej: 3*F037 o 0,5xqueso">
+          <div id="opProductSearchHint" class="product-search-hint">Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.</div>
+          <div id="opProductResults" class="product-search-results hidden"></div>
+        </div>
+        <div id="opItems" class="item-editor"></div>
+      </section>
       <div class="form-grid">
         <label>Descuento general %<input id="opDiscount" type="number" min="0" max="100" step="0.01" value="0"></label>
         <label>Forma de pago inicial<select id="opPaymentMethod"><option value="CUENTA_CORRIENTE">Cuenta corriente</option><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="CHEQUE">Cheque</option><option value="MIXTO">Mixto</option></select></label>
@@ -184,11 +193,12 @@
       <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y clientes</strong><small>Datos sincronizados de D9</small></div><b>›</b></button>
       <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
     </div>
+    <p id="appVersionMore" class="version-more">—</p>
   </dialog>
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js"></script>
-  <script src="app.js?v=10"></script>
+  <script src="config.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

@@ -35,6 +35,8 @@ const state = {
   currentView:"home",
   masterTab:"clients",
   draftItems:[],
+  productSearchResults:[],
+  productSearchIndex:0,
   currentOrder:null,
   cacheLoaded:false
 };
@@ -102,6 +104,9 @@ function showApp() {
   $("#sessionName").textContent=state.user?.nombre||state.user?.usuario||"Usuario";
   $("#sessionRole").textContent=state.user?.rol_gestion||"Gestión";
   $("#welcomeName").textContent=(state.user?.nombre||"Ale").split(/\s+/)[0];
+  const version=String(CONFIG.APP_VERSION||"versión sin identificar");
+  if($("#appVersion"))$("#appVersion").textContent=version;
+  if($("#appVersionMore"))$("#appVersionMore").textContent=`D9 Gestión · ${version}`;
 }
 
 async function login(event) {
@@ -252,18 +257,73 @@ function populateSelectors() {
   const options='<option value="">Seleccionar cliente…</option>'+clients.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}${c.ciudad?` · ${esc(c.ciudad)}`:""}</option>`).join("");
   $("#opClient").innerHTML=options;
 }
-function productOptions(selected="") { return '<option value="">Seleccionar producto…</option>'+state.source.productos.filter(p=>numeric(p.lista_1)>0).map(p=>`<option value="${esc(p.id)}" ${String(p.id)===String(selected)?"selected":""}>${esc(p.nombre)} · ${money(p.lista_1)}</option>`).join(""); }
+function operationProducts(){return state.source.productos.filter(p=>numeric(p.lista_1)>0)}
+
+function parseProductQuickQuery(value=""){
+  const raw=String(value||"").trim();
+  const match=raw.match(/^((?:\d+(?:[.,]\d{1,3})?)|(?:[.,]\d{1,3}))\s*(?:\*|x|×)\s*(.*)$/i);
+  if(!match)return {quantity:1,term:raw};
+  const quantity=Number(match[1].replace(",","."));
+  return {quantity:Number.isFinite(quantity)&&quantity>0?Math.round(quantity*1000)/1000:0,term:String(match[2]||"").trim()};
+}
+
+function productSearchRank(product,term){
+  const q=normalize(term),id=normalize(product.id),name=normalize(product.nombre);
+  if(id===q)return 0;
+  if(id.startsWith(q))return 1;
+  if(name.startsWith(q))return 2;
+  if(id.includes(q))return 3;
+  if(name.includes(q))return 4;
+  return 5;
+}
+
+function renderOperationProductResults(){
+  const input=$("#opProductSearch"),results=$("#opProductResults"),hint=$("#opProductSearchHint");
+  if(!input||!results||!hint)return;
+  const parsed=parseProductQuickQuery(input.value);
+  if(!parsed.term){state.productSearchResults=[];state.productSearchIndex=0;results.innerHTML="";results.classList.add("hidden");hint.textContent=parsed.quantity===0?"La cantidad debe ser mayor que cero.":"Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.";hint.classList.toggle("error",parsed.quantity===0);return}
+  hint.classList.remove("error","success");
+  if(parsed.quantity<=0){state.productSearchResults=[];results.innerHTML="";results.classList.add("hidden");hint.textContent="La cantidad debe ser mayor que cero.";hint.classList.add("error");return}
+  const rows=operationProducts().filter(p=>matchesSearch([p.id,p.nombre],parsed.term)).sort((a,b)=>productSearchRank(a,parsed.term)-productSearchRank(b,parsed.term)||String(a.nombre).localeCompare(String(b.nombre),"es")).slice(0,12);
+  state.productSearchResults=rows;state.productSearchIndex=Math.min(state.productSearchIndex,Math.max(0,rows.length-1));
+  if(!rows.length){results.innerHTML='<div class="empty compact-empty">No encontré ese producto.</div>';results.classList.remove("hidden");hint.textContent=`Sin resultados para “${parsed.term}”.`;return}
+  hint.textContent=`Cantidad a agregar: ${number(parsed.quantity)} · Enter agrega el primer resultado.`;
+  results.innerHTML=rows.map((p,index)=>`<button type="button" class="product-search-result ${index===state.productSearchIndex?"selected":""}" data-op-product="${esc(p.id)}"><span><strong>${esc(p.id)} · ${esc(p.nombre)}</strong><small>${esc(p.categoria||p.marca||"Producto")}</small></span><span class="product-result-side"><b>${money(p.lista_1)}</b><small>Agregar ${number(parsed.quantity)}</small></span></button>`).join("");
+  results.classList.remove("hidden");
+}
+
+function moveProductSearchSelection(direction){
+  if(!state.productSearchResults.length)return;
+  state.productSearchIndex=(state.productSearchIndex+direction+state.productSearchResults.length)%state.productSearchResults.length;
+  $$(".product-search-result",$("#opProductResults")).forEach((row,index)=>row.classList.toggle("selected",index===state.productSearchIndex));
+  $(".product-search-result.selected",$("#opProductResults"))?.scrollIntoView({block:"nearest"});
+}
+
+function addQuickProduct(productId){
+  const product=productById(productId),parsed=parseProductQuickQuery($("#opProductSearch").value);
+  if(!product)return toast("Producto no encontrado.","error");
+  if(parsed.quantity<=0)return toast("La cantidad debe ser mayor que cero.","error");
+  syncDraftFromDom();
+  const quantity=Math.round(parsed.quantity*1000)/1000,existing=state.draftItems.find(item=>String(item.id_producto)===String(product.id));
+  if(existing)existing.cantidad=Math.round((numeric(existing.cantidad)+quantity)*1000)/1000;
+  else state.draftItems.push({id_producto:product.id,nombre:product.nombre,cantidad:quantity,precio:numeric(product.lista_1)});
+  renderDraftItems();updateOperationTotal();
+  $("#opProductSearch").value="";state.productSearchResults=[];state.productSearchIndex=0;$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");
+  const hint=$("#opProductSearchHint");hint.textContent=`Agregado: ${number(quantity)} × ${product.nombre}${existing?" · cantidad acumulada":""}.`;hint.className="product-search-hint success";
+  $("#opProductSearch").focus();
+}
 
 function openOperation(order=null) {
   state.currentOrder=order; state.draftItems=(order?.items||[]).map(i=>({id_producto:i.id_producto||i.id, nombre:i.nombre||i.detalle, cantidad:numeric(i.cantidad||i.total), precio:numeric(i.precio)}));
-  if(!state.draftItems.length) state.draftItems=[{id_producto:"",nombre:"",cantidad:1,precio:0}];
+  state.productSearchResults=[];state.productSearchIndex=0;
   $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   if(order){const candidates=state.source.clientes.filter(c=>normalize(c.nombre)===normalize(order.cliente));if(candidates.length===1)$("#opClient").value=candidates[0].id;else toast(candidates.length>1?"Hay más de un cliente con ese nombre. Elegí el correcto.":"El cliente del pedido no coincide con la ficha. Elegilo antes de guardar.");}
-  renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();
+  $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.";
+  renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();setTimeout(()=>$("#opProductSearch").focus(),80);
 }
 function renderDraftItems() {
-  $("#opItems").innerHTML=state.draftItems.map((item,index)=>`<div class="item-row" data-item-index="${index}"><label>Producto<select data-item-product>${productOptions(item.id_producto)}</select></label><label>Cantidad<input data-item-qty type="number" min="0.001" step="0.001" value="${esc(item.cantidad)}"></label><label>Precio<input data-item-price type="number" min="0" step="0.01" value="${esc(item.precio)}"></label><div class="line-total">${money(Number(item.cantidad)*Number(item.precio))}</div><button class="remove-item" data-item-remove type="button">×</button></div>`).join("");
+  $("#opItems").innerHTML=state.draftItems.length?state.draftItems.map((item,index)=>`<div class="item-row" data-item-index="${index}"><div class="item-product-summary"><input data-item-product type="hidden" value="${esc(item.id_producto)}"><small>${esc(item.id_producto||"SIN CÓDIGO")}</small><strong>${esc(item.nombre||productById(item.id_producto)?.nombre||"Producto")}</strong></div><label>Cantidad<input data-item-qty type="number" min="0.001" step="0.001" inputmode="decimal" value="${esc(item.cantidad)}"></label><label>Precio<input data-item-price type="number" min="0" step="0.01" inputmode="decimal" value="${esc(item.precio)}"></label><div class="line-total">${money(Number(item.cantidad)*Number(item.precio))}</div><button class="remove-item" data-item-remove type="button" aria-label="Eliminar ${esc(item.nombre||"producto")}">×</button></div>`).join(""):'<div class="empty compact-empty">Todavía no agregaste productos.</div>';
 }
 function syncDraftFromDom() { $$(".item-row").forEach(row=>{const i=Number(row.dataset.itemIndex),pid=$("[data-item-product]",row).value,p=productById(pid);state.draftItems[i]={id_producto:pid,nombre:p?.nombre||state.draftItems[i]?.nombre||"",cantidad:Number($("[data-item-qty]",row).value)||0,precio:Number($("[data-item-price]",row).value)||0};}); }
 function operationTotal() { const sub=state.draftItems.reduce((s,i)=>s+Number(i.cantidad||0)*Number(i.precio||0),0);return sub*(1-(Number($("#opDiscount").value)||0)/100); }
@@ -452,7 +512,7 @@ function bindEvents(){
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});
   ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
-  $("#btnAddItem").addEventListener("click",()=>{syncDraftFromDom();state.draftItems.push({id_producto:"",nombre:"",cantidad:1,precio:0});renderDraftItems();updateOperationTotal()});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("change",e=>{if(e.target.matches("[data-item-product]")){const row=e.target.closest(".item-row"),i=Number(row.dataset.itemIndex),p=productById(e.target.value);state.draftItems[i].id_producto=e.target.value;state.draftItems[i].nombre=p?.nombre||"";state.draftItems[i].precio=Number(p?.lista_1)||0;renderDraftItems();updateOperationTotal()}});$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);if(!state.draftItems.length)state.draftItems.push({id_producto:"",nombre:"",cantidad:1,precio:0});renderDraftItems();updateOperationTotal()}});
+  $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opPaidAmount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaymentMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
   $("#btnOccasionalClient").addEventListener("click",()=>toast("En la primera versión los clientes nuevos se cargan desde el maestro para conservar un único ID."));
   [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
