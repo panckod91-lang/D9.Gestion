@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.1.12-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.1.13-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -14,6 +14,7 @@ Versión actual: `v0.1.12-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Suma automática de cantidades cuando se vuelve a cargar un producto ya agregado.
 - Búsqueda de clientes por código o cualquier parte del nombre, sin desplegar listados interminables.
 - Cliente ocasional con nombre propio y un identificador interno independiente.
+- Efectivo y transferencia precargan el total como importe pagado; el valor sigue siendo editable.
 - Impresión compacta en medias hojas de un A4 vertical, con encabezado repetido, partes equilibradas y continuación automática cuando no entran todos los productos.
 - Pago inicial, pago mixto o saldo en cuenta corriente.
 - Recibos posteriores y aplicación a comprobantes.
