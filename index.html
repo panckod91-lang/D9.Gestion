@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=20">
+  <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -108,7 +108,6 @@
 
         <section id="view-maestros" class="view">
           <div class="page-head"><div><h2>Productos y precios</h2><p>Maestros de la Sheet central D9_pedidos.</p></div></div>
-          <div class="tabs"><button class="active" data-master-tab="products">Productos</button><button data-master-tab="clients">Clientes</button><button data-master-tab="users">Usuarios</button></div>
           <div id="productAdminActions" class="admin-toolbar">
             <button id="btnNewProduct" class="btn primary" type="button">＋ Nuevo producto</button>
             <button id="btnBulkPrices" class="btn secondary" type="button">％ Actualización masiva</button>
@@ -240,8 +239,10 @@
         <label>Código<input id="productId" maxlength="60" required></label>
         <label>Estado<select id="productActive"><option value="si">Activo</option><option value="no">Oculto</option></select></label>
         <label class="wide">Descripción<input id="productName" maxlength="180" required></label>
-        <label>Categoría / rubro<input id="productCategory"></label>
-        <label>Marca<input id="productBrand"></label>
+        <label>Categoría / rubro<input id="productCategory" list="productCategoryOptions" autocomplete="off" placeholder="Elegí o escribí una nueva"><small>Podés elegir una existente o crear una escribiéndola.</small></label>
+        <datalist id="productCategoryOptions"></datalist>
+        <label>Marca<input id="productBrand" list="productBrandOptions" autocomplete="off" placeholder="Elegí o escribí una nueva"><small>Podés elegir una existente o crear una escribiéndola.</small></label>
+        <datalist id="productBrandOptions"></datalist>
       </div>
       <section class="subpanel product-price-panel"><h3>Listas de precios</h3><div id="productPriceFields" class="form-grid"></div></section>
       <p id="productFormMessage" class="form-message hidden"></p>
@@ -271,7 +272,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=20"></script>
-  <script src="app.js?v=20"></script>
+  <script src="config.js?v=21"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

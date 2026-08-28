@@ -34,7 +34,6 @@ const state = {
   source: {clientes:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],pedidos:[]},
   gestion: {operaciones:[],items:[],recibos:[],pagos:[],cheques:[],movimientos:[],config:{}},
   currentView:"home",
-  masterTab:"products",
   draftItems:[],
   clientSearchResults:[],
   clientSearchIndex:0,
@@ -81,7 +80,11 @@ function apiUrl(action, params={}) {
 async function parseResponse(res) {
   const text = await res.text();
   let data; try { data=JSON.parse(text); } catch { throw new Error(`Respuesta inválida: ${text.slice(0,100)}`); }
-  if (!data.ok) throw new Error(data.error || data.message || "La operación no pudo completarse");
+  if (!data.ok) {
+    const message=data.error||data.message||"La operación no pudo completarse";
+    if(state.token&&/sesión|token|autoriz/i.test(message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
+    throw new Error(message);
+  }
   return data;
 }
 async function apiGet(action, params={}) {
@@ -263,13 +266,9 @@ function fillPriceListSelect(select,value=""){
 
 function renderMasters() {
   const q=normalize($("#mastersSearch").value),selectedList=$("#mastersPriceList").value||priceLists()[0]?.id||"lista_1";let rows=[];
-  $("#productAdminActions").classList.toggle("hidden",state.masterTab!=="products");
-  $("#mastersPriceList").classList.toggle("hidden",state.masterTab!=="products");
   $("#productAdminNotice").textContent=!isAdmin()?"Tu sesión es de consulta; solo Ale puede modificar maestros.":sourceWritesEnabled()?"Escritura habilitada: los cambios impactan en D9_pedidos y quedan auditados.":"Modo seguro: podés revisar y preparar cambios, pero D9_pedidos está bloqueada hasta activar SOURCE_WRITES_ENABLED.";
   $("#btnNewProduct").disabled=!isAdmin();$("#btnBulkPrices").disabled=!isAdmin();
-  if(state.masterTab==="clients")rows=state.source.clientes.filter(c=>matchesSearch([c.id,c.nombre,c.ciudad,c.telefono,c.lista_precio],q)).map(c=>`<article class="data-card"><div><h3>${esc(c.nombre)}</h3><p>${esc(c.direccion||"")} ${esc(c.ciudad||"")}</p><div class="meta"><span class="pill">ID ${esc(c.id)}</span><span class="pill">${esc(c.lista_precio||"lista_1")}</span></div></div><div class="card-side"><span>${esc(c.telefono||"")}</span></div></article>`);
-  if(state.masterTab==="products")rows=adminProducts().filter(p=>matchesSearch([p.id,p.nombre,p.categoria,p.marca],q)).slice(0,500).map(p=>`<article class="data-card product-master-card ${activeValue(p.activo)?"":"inactive"}"><div><h3>${esc(p.nombre)}</h3><p>${esc(p.categoria||"Sin categoría")} · ${esc(p.marca||"Sin marca")}</p><div class="meta"><span class="pill">${esc(p.id)}</span><span class="pill ${activeValue(p.activo)?"green":"red"}">${activeValue(p.activo)?"Activo":"Oculto"}</span>${priceLists().map(list=>numeric(p[list.id])>0?`<span class="pill">${esc(list.nombre)} ${money(p[list.id])}</span>`:"").join("")}</div></div><div class="card-side"><strong>${money(p[selectedList])}</strong>${isAdmin()?`<button class="mini-btn primary" data-edit-product="${esc(p.id)}">Editar</button>`:""}</div></article>`);
-  if(state.masterTab==="users")rows=state.source.usuarios.filter(u=>matchesSearch([u.id,u.usuario,u.nombre,u.rol],q)).map(u=>`<article class="data-card"><div><h3>${esc(u.nombre)}</h3><p>${esc(u.usuario)} · ${esc(u.rol)}</p><div class="meta"><span class="pill">ID ${esc(u.id)}</span>${String(u.id)===String(state.user?.id)?'<span class="pill green">Sesión actual</span>':""}</div></div></article>`);
+  rows=adminProducts().filter(p=>matchesSearch([p.id,p.nombre,p.categoria,p.marca],q)).slice(0,500).map(p=>`<article class="data-card product-master-card ${activeValue(p.activo)?"":"inactive"}"><div><h3>${esc(p.nombre)}</h3><p>${esc(p.categoria||"Sin categoría")} · ${esc(p.marca||"Sin marca")}</p><div class="meta"><span class="pill">${esc(p.id)}</span><span class="pill ${activeValue(p.activo)?"green":"red"}">${activeValue(p.activo)?"Activo":"Oculto"}</span>${priceLists().map(list=>numeric(p[list.id])>0?`<span class="pill">${esc(list.nombre)} ${money(p[list.id])}</span>`:"").join("")}</div></div><div class="card-side"><strong>${money(p[selectedList])}</strong>${isAdmin()?`<button class="mini-btn primary" data-edit-product="${esc(p.id)}">Editar</button>`:""}</div></article>`);
   $("#mastersList").className="card-list";$("#mastersList").innerHTML=rows.join("")||'<div class="empty">Sin resultados.</div>';
 }
 
@@ -277,9 +276,16 @@ function hydrateMasterFilters(){
   const select=$("#mastersPriceList"),current=select?.value;fillPriceListSelect(select,current||priceLists()[0]?.id);
 }
 
+function fillProductDatalist(id,key){
+  const list=document.getElementById(id);if(!list)return;
+  list.innerHTML=uniqueValues(key).map(value=>`<option value="${esc(value)}"></option>`).join("");
+}
+function hydrateProductSuggestions(){fillProductDatalist("productCategoryOptions","categoria");fillProductDatalist("productBrandOptions","marca")}
+
 function openProductEditor(productId=""){
   if(!isAdmin())return toast("Esta sesión no puede modificar productos.","error");
   const product=productId?adminProducts().find(p=>String(p.id)===String(productId)):null;
+  hydrateProductSuggestions();
   $("#productForm").reset();$("#productDialogTitle").textContent=product?"Editar producto":"Nuevo producto";
   $("#productId").value=product?.id||"";$("#productId").readOnly=!!product;$("#productName").value=product?.nombre||"";$("#productCategory").value=product?.categoria||"";$("#productBrand").value=product?.marca||"";$("#productActive").value=activeValue(product?.activo??"si")?"si":"no";
   $("#productPriceFields").innerHTML=priceLists().map(list=>`<label>${esc(list.nombre)}<input data-product-price="${esc(list.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${product?.[list.id]===undefined||product?.[list.id]===""?"":esc(numeric(product[list.id]))}"></label>`).join("");
@@ -292,12 +298,12 @@ async function saveProduct(event){
   const producto={id:$("#productId").value.trim(),nombre:$("#productName").value.trim(),categoria:$("#productCategory").value.trim(),marca:$("#productBrand").value.trim(),activo:$("#productActive").value};
   $$('[data-product-price]',$("#productPriceFields")).forEach(input=>producto[input.dataset.productPrice]=input.value===""?"":numeric(input.value));
   button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");
-  try{const result=await apiPost("source_save_product",{producto});toast(result.message||"Producto guardado");$("#productDialog").close();await loadAll();state.masterTab="products";renderMasters()}
+  try{const result=await apiPost("source_save_product",{producto});toast(result.message||"Producto guardado");$("#productDialog").close();await loadAll();renderMasters()}
   catch(err){message.textContent=err.message;message.className="form-message error"}
   finally{button.disabled=false;button.textContent="Guardar producto"}
 }
 
-function uniqueValues(key){return [...new Set(adminProducts().map(p=>String(p[key]||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"))}
+function uniqueValues(key){const values=new Map();adminProducts().forEach(p=>{const value=String(p[key]||"").trim(),normalized=normalize(value);if(value&&normalized&&!values.has(normalized))values.set(normalized,value)});return [...values.values()].sort((a,b)=>a.localeCompare(b,"es"))}
 function fillBulkFilters(){
   $("#bulkCategory").innerHTML='<option value="">Todas</option>'+uniqueValues("categoria").map(v=>`<option>${esc(v)}</option>`).join("");
   $("#bulkBrand").innerHTML='<option value="">Todas</option>'+uniqueValues("marca").map(v=>`<option>${esc(v)}</option>`).join("");
@@ -319,7 +325,7 @@ function calculateBulkPreview(){
 async function applyBulkPrices(event){
   event.preventDefault();if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");if(!state.bulkPriceChanges.length)return;if(!confirm(`¿Aplicar ${state.bulkPriceChanges.length} cambios de precios en la Sheet original?`))return;
   const button=$("#btnApplyBulkPrices");button.disabled=true;button.textContent="Aplicando…";
-  try{const result=await apiPost("source_bulk_prices",{cambios:state.bulkPriceChanges});toast(`${result.actualizados||0} precios actualizados`);$("#bulkPriceDialog").close();await loadAll();state.masterTab="products";renderMasters()}
+  try{const result=await apiPost("source_bulk_prices",{cambios:state.bulkPriceChanges});toast(`${result.actualizados||0} precios actualizados`);$("#bulkPriceDialog").close();await loadAll();renderMasters()}
   catch(err){toast(err.message,"error")}
   finally{button.disabled=false;button.textContent="Aplicar cambios"}
 }
@@ -667,7 +673,7 @@ function bindEvents(){
   ["#opDiscount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaidAmount").addEventListener("input",()=>{state.autoPaidAmount=false;updateOperationTotal()});$("#opPaymentMethod").addEventListener("change",e=>{const method=e.target.value,mixed=method==="MIXTO",check=method==="CHEQUE"||mixed,fullPayment=["EFECTIVO","TRANSFERENCIA"].includes(method);state.autoPaidAmount=fullPayment;if(method==="CUENTA_CORRIENTE")$("#opPaidAmount").value="0";$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
   [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
   $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());$("#btnNewProduct").addEventListener("click",()=>openProductEditor());$("#btnBulkPrices").addEventListener("click",openBulkPrices);$("#productForm").addEventListener("submit",saveProduct);$("#bulkPriceForm").addEventListener("submit",applyBulkPrices);$("#btnRefreshBulkPreview").addEventListener("click",calculateBulkPreview);$("#mastersPriceList").addEventListener("change",renderMasters);
-  $("#btnReloadOrders").addEventListener("click",loadAll);$$("[data-master-tab]").forEach(b=>b.addEventListener("click",()=>{$$("[data-master-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.masterTab=b.dataset.masterTab;renderMasters()}));
+  $("#btnReloadOrders").addEventListener("click",loadAll);
 }
 
 async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});}
