@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -49,7 +49,7 @@
           <button data-view="recibos"><span>💵</span>Recibos</button>
           <button id="btnMore" class="mobile-more" type="button"><span>☰</span>Más</button>
           <button class="desktop-only" data-view="cheques"><span>🏦</span>Cheques</button>
-          <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y clientes</button>
+          <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y precios</button>
           <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
         <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span><small id="appVersion" class="app-version">—</small></div>
@@ -107,9 +107,14 @@
         </section>
 
         <section id="view-maestros" class="view">
-          <div class="page-head"><div><h2>Productos y clientes</h2><p>Datos sincronizados desde la Sheet central de D9.</p></div></div>
-          <div class="tabs"><button class="active" data-master-tab="clients">Clientes</button><button data-master-tab="products">Productos</button><button data-master-tab="users">Usuarios</button></div>
-          <div class="filters"><input id="mastersSearch" placeholder="Buscar"></div>
+          <div class="page-head"><div><h2>Productos y precios</h2><p>Maestros de la Sheet central D9_pedidos.</p></div></div>
+          <div class="tabs"><button class="active" data-master-tab="products">Productos</button><button data-master-tab="clients">Clientes</button><button data-master-tab="users">Usuarios</button></div>
+          <div id="productAdminActions" class="admin-toolbar">
+            <button id="btnNewProduct" class="btn primary" type="button">＋ Nuevo producto</button>
+            <button id="btnBulkPrices" class="btn secondary" type="button">％ Actualización masiva</button>
+            <span id="productAdminNotice" class="helper">Los cambios se escriben en la Sheet original y quedan auditados.</span>
+          </div>
+          <div class="filters"><input id="mastersSearch" placeholder="Buscar código, descripción, categoría o marca"><select id="mastersPriceList"></select></div>
           <div id="mastersList" class="card-list empty">Sin datos sincronizados.</div>
         </section>
 
@@ -222,15 +227,51 @@
     <div class="dialog-head"><div><small>GESTIÓN</small><h2>Más opciones</h2></div><button type="button" class="dialog-close" data-close="moreDialog">×</button></div>
     <div class="more-menu">
       <button type="button" data-go="cheques"><span>🏦</span><div><strong>Cheques</strong><small>Vencimientos y estados</small></div><b>›</b></button>
-      <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y clientes</strong><small>Datos sincronizados de D9</small></div><b>›</b></button>
+      <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y precios</strong><small>Administración de la Sheet original</small></div><b>›</b></button>
       <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
     </div>
     <p id="appVersionMore" class="version-more">—</p>
   </dialog>
 
+  <dialog id="productDialog" class="dialog">
+    <form id="productForm" method="dialog">
+      <div class="dialog-head"><div><small>MAESTRO CENTRAL</small><h2 id="productDialogTitle">Nuevo producto</h2></div><button type="button" class="dialog-close" data-close="productDialog">×</button></div>
+      <div class="form-grid">
+        <label>Código<input id="productId" maxlength="60" required></label>
+        <label>Estado<select id="productActive"><option value="si">Activo</option><option value="no">Oculto</option></select></label>
+        <label class="wide">Descripción<input id="productName" maxlength="180" required></label>
+        <label>Categoría / rubro<input id="productCategory"></label>
+        <label>Marca<input id="productBrand"></label>
+      </div>
+      <section class="subpanel product-price-panel"><h3>Listas de precios</h3><div id="productPriceFields" class="form-grid"></div></section>
+      <p id="productFormMessage" class="form-message hidden"></p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="productDialog">Cancelar</button><button id="btnSaveProduct" class="btn primary big" type="submit">Guardar producto</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="bulkPriceDialog" class="dialog wide-dialog">
+    <form id="bulkPriceForm" method="dialog">
+      <div class="dialog-head"><div><small>PRECIOS</small><h2>Actualización masiva</h2></div><button type="button" class="dialog-close" data-close="bulkPriceDialog">×</button></div>
+      <div class="form-grid bulk-price-grid">
+        <label>Buscar productos<input id="bulkSearch" placeholder="Código, descripción, categoría o marca"></label>
+        <label>Categoría<select id="bulkCategory"><option value="">Todas</option></select></label>
+        <label>Marca<select id="bulkBrand"><option value="">Todas</option></select></label>
+        <label>Lista de origen<select id="bulkSourceList"></select></label>
+        <label>Lista a modificar<select id="bulkTargetList"></select></label>
+        <label>Operación<select id="bulkOperation"><option value="percent">Porcentaje</option><option value="amount">Importe fijo</option></select></label>
+        <label>Variación<input id="bulkValue" type="number" step="0.01" value="0"><small>Acepta negativos para bajar precios.</small></label>
+        <label>Redondear a<select id="bulkRounding"><option value="0.01">Centavos</option><option value="1">$1</option><option value="10">$10</option><option value="50">$50</option><option value="100">$100</option></select></label>
+      </div>
+      <div class="bulk-preview-head"><div><h3>Vista previa</h3><p id="bulkSummary">Completá los filtros y la variación.</p></div><button id="btnRefreshBulkPreview" class="btn secondary" type="button">Actualizar vista previa</button></div>
+      <div id="bulkPreview" class="bulk-preview empty">Sin cambios calculados.</div>
+      <p class="warning-box">La confirmación modifica la Sheet original. Si algún precio cambió después de esta vista previa, el Script cancela toda la operación.</p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="bulkPriceDialog">Cancelar</button><button id="btnApplyBulkPrices" class="btn primary big" type="submit" disabled>Aplicar cambios</button></div>
+    </form>
+  </dialog>
+
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=14"></script>
-  <script src="app.js?v=14"></script>
+  <script src="config.js?v=20"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.1.14-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.2.0-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -30,6 +30,14 @@ Versión actual: `v0.1.14-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Inicio inmediato desde la última copia local y actualización silenciosa en segundo plano.
 - Apertura instantánea del detalle después de confirmar un comprobante o recibo.
 - Versión visible en la sesión de escritorio y en el menú móvil “Más”.
+- Ale queda identificado como administrador mediante `ADMIN_USER_IDS` en las propiedades del Script.
+- Administración individual de productos sobre la Sheet central: alta, edición, categorías, marcas, estado y precios.
+- Detección automática de todas las columnas `lista_N` existentes en productos.
+- Actualización masiva de precios por porcentaje o importe, con filtros, lista de origen/destino, redondeo y vista previa.
+- Control de concurrencia optimista: si un precio cambió desde la vista previa, la actualización completa se cancela.
+- Auditoría de altas, modificaciones individuales y cambios masivos en la Sheet propia de Gestión.
+- Bloqueo de seguridad `SOURCE_WRITES_ENABLED`: la primera publicación permite revisar todo sin escribir en D9_pedidos.
+- Al crear comprobantes manuales, Gestión toma la lista asignada al cliente y usa Lista 1 como respaldo.
 
 ## Arquitectura
 
@@ -38,10 +46,11 @@ D9 Gestión (Cloudflare Pages)
         ↓
 D9 Gestión Script (Apps Script separado)
         ├── lee → Sheet central D9
-        └── escribe → Sheet D9 Gestión
+        ├── administra productos/precios → Sheet central D9
+        └── registra comprobantes/cobranzas → Sheet D9 Gestión
 ```
 
-No usa Firebase y no modifica `D9 Script PROD` ni el Worker de pedidos.
+No usa Firebase. Esta versión no modifica `D9 Script PROD` ni el Worker de pedidos.
 
 ## Archivos
 
@@ -62,6 +71,8 @@ No usa Firebase y no modifica `D9 Script PROD` ni el Worker de pedidos.
 ## Pendiente antes de producción
 
 - Probar impresión en la impresora real de Ale y ajustar el A5.
-- Incorporar edición controlada de clientes, productos y parámetros de D9 Admin.
+- Incorporar edición controlada de clientes, usuarios, parámetros y publicidad de D9 Admin.
+- Coordinar listas dinámicas nuevas con D9 Pedidos y D9 Script PROD antes de crear Lista 4 o superiores.
+- Incorporar la hoja `ofertas` y su consumo desde D9 Pedidos.
 - Agregar exportación y respaldo.
 - Hacer pruebas de concurrencia y recuperación ante una escritura incompleta.
