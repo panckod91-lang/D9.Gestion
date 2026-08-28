@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -159,7 +159,7 @@
         <div class="product-quick-add">
           <label for="opProductSearch">Carga rápida de productos</label>
           <input id="opProductSearch" type="search" autocomplete="off" placeholder="Código o descripción · Ej: 3*F037 o 0,5xqueso">
-          <div id="opProductSearchHint" class="product-search-hint">Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.</div>
+          <div id="opProductSearchHint" class="product-search-hint">Sin cantidad indicada se pregunta antes de agregar. Acepta *, x y cantidades con coma.</div>
           <div id="opProductResults" class="product-search-results hidden"></div>
         </div>
         <div id="opItems" class="item-editor"></div>
@@ -175,6 +175,21 @@
       <section id="opCheckFields" class="subpanel hidden"><h3>Datos del cheque</h3><div class="form-grid"><label>Banco<input id="opCheckBank"></label><label>Número<input id="opCheckNumber"></label><label>Librador<input id="opCheckIssuer"></label><label>Vencimiento<input id="opCheckDue" type="date"></label></div></section>
       <div class="operation-total"><span>Total</span><strong id="opTotal">$ 0</strong><small id="opBalance">Saldo: $ 0</small></div>
       <div class="dialog-actions"><button type="button" class="btn secondary" data-close="operationDialog">Cancelar</button><button id="btnSaveOperation" type="submit" class="btn primary big">Guardar comprobante</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="productQuantityDialog" class="dialog quantity-dialog">
+    <form id="productQuantityForm" method="dialog">
+      <div class="dialog-head"><div><small>CANTIDAD</small><h2>Agregar producto</h2></div><button type="button" class="dialog-close" data-close="productQuantityDialog">×</button></div>
+      <input id="quantityProductId" type="hidden">
+      <div class="quantity-product-card">
+        <small id="quantityProductCode"></small>
+        <strong id="quantityProductName"></strong>
+        <span id="quantityProductPrice"></span>
+      </div>
+      <label class="quantity-input-label">Cantidad<input id="quantityProductValue" type="text" inputmode="decimal" autocomplete="off" placeholder="1"></label>
+      <p class="quantity-help">Dejalo vacío y apretá Enter para agregar 1. También acepta fracciones.</p>
+      <div class="dialog-actions quantity-actions"><button type="button" class="btn secondary" data-close="productQuantityDialog">Cancelar</button><button type="submit" class="btn primary big">Agregar</button></div>
     </form>
   </dialog>
 
@@ -215,7 +230,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=13"></script>
-  <script src="app.js?v=13"></script>
+  <script src="config.js?v=14"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

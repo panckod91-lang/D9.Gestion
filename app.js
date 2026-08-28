@@ -315,9 +315,9 @@ function operationProducts(){return state.source.productos.filter(p=>numeric(p.l
 function parseProductQuickQuery(value=""){
   const raw=String(value||"").trim();
   const match=raw.match(/^((?:\d+(?:[.,]\d{1,3})?)|(?:[.,]\d{1,3}))\s*(?:\*|x|×)\s*(.*)$/i);
-  if(!match)return {quantity:1,term:raw};
+  if(!match)return {quantity:1,term:raw,explicitQuantity:false};
   const quantity=Number(match[1].replace(",","."));
-  return {quantity:Number.isFinite(quantity)&&quantity>0?Math.round(quantity*1000)/1000:0,term:String(match[2]||"").trim()};
+  return {quantity:Number.isFinite(quantity)&&quantity>0?Math.round(quantity*1000)/1000:0,term:String(match[2]||"").trim(),explicitQuantity:true};
 }
 
 function productSearchRank(product,term){
@@ -334,14 +334,14 @@ function renderOperationProductResults(){
   const input=$("#opProductSearch"),results=$("#opProductResults"),hint=$("#opProductSearchHint");
   if(!input||!results||!hint)return;
   const parsed=parseProductQuickQuery(input.value);
-  if(!parsed.term){state.productSearchResults=[];state.productSearchIndex=0;results.innerHTML="";results.classList.add("hidden");hint.textContent=parsed.quantity===0?"La cantidad debe ser mayor que cero.":"Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.";hint.classList.toggle("error",parsed.quantity===0);return}
+  if(!parsed.term){state.productSearchResults=[];state.productSearchIndex=0;results.innerHTML="";results.classList.add("hidden");hint.textContent=parsed.quantity===0?"La cantidad debe ser mayor que cero.":"Sin cantidad indicada se pregunta antes de agregar. Acepta *, x y cantidades con coma.";hint.classList.toggle("error",parsed.quantity===0);return}
   hint.classList.remove("error","success");
   if(parsed.quantity<=0){state.productSearchResults=[];results.innerHTML="";results.classList.add("hidden");hint.textContent="La cantidad debe ser mayor que cero.";hint.classList.add("error");return}
   const rows=operationProducts().filter(p=>matchesSearch([p.id,p.nombre],parsed.term)).sort((a,b)=>productSearchRank(a,parsed.term)-productSearchRank(b,parsed.term)||String(a.nombre).localeCompare(String(b.nombre),"es")).slice(0,12);
   state.productSearchResults=rows;state.productSearchIndex=Math.min(state.productSearchIndex,Math.max(0,rows.length-1));
   if(!rows.length){results.innerHTML='<div class="empty compact-empty">No encontré ese producto.</div>';results.classList.remove("hidden");hint.textContent=`Sin resultados para “${parsed.term}”.`;return}
-  hint.textContent=`Cantidad a agregar: ${number(parsed.quantity)} · Enter agrega el primer resultado.`;
-  results.innerHTML=rows.map((p,index)=>`<button type="button" class="product-search-result ${index===state.productSearchIndex?"selected":""}" data-op-product="${esc(p.id)}"><span><strong>${esc(p.id)} · ${esc(p.nombre)}</strong><small>${esc(p.categoria||p.marca||"Producto")}</small></span><span class="product-result-side"><b>${money(p.lista_1)}</b><small>Agregar ${number(parsed.quantity)}</small></span></button>`).join("");
+  hint.textContent=parsed.explicitQuantity?`Cantidad a agregar: ${number(parsed.quantity)} · Enter agrega el primer resultado.`:"Enter selecciona el producto y después confirma la cantidad.";
+  results.innerHTML=rows.map((p,index)=>`<button type="button" class="product-search-result ${index===state.productSearchIndex?"selected":""}" data-op-product="${esc(p.id)}"><span><strong>${esc(p.id)} · ${esc(p.nombre)}</strong><small>${esc(p.categoria||p.marca||"Producto")}</small></span><span class="product-result-side"><b>${money(p.lista_1)}</b><small>${parsed.explicitQuantity?`Agregar ${number(parsed.quantity)}`:"Elegir cantidad"}</small></span></button>`).join("");
   results.classList.remove("hidden");
 }
 
@@ -352,18 +352,38 @@ function moveProductSearchSelection(direction){
   $(".product-search-result.selected",$("#opProductResults"))?.scrollIntoView({block:"nearest"});
 }
 
-function addQuickProduct(productId){
-  const product=productById(productId),parsed=parseProductQuickQuery($("#opProductSearch").value);
+function commitQuickProduct(product,quantity){
   if(!product)return toast("Producto no encontrado.","error");
-  if(parsed.quantity<=0)return toast("La cantidad debe ser mayor que cero.","error");
+  quantity=Math.round(numeric(quantity)*1000)/1000;if(quantity<=0)return toast("La cantidad debe ser mayor que cero.","error");
   syncDraftFromDom();
-  const quantity=Math.round(parsed.quantity*1000)/1000,existing=state.draftItems.find(item=>String(item.id_producto)===String(product.id));
+  const existing=state.draftItems.find(item=>String(item.id_producto)===String(product.id));
   if(existing)existing.cantidad=Math.round((numeric(existing.cantidad)+quantity)*1000)/1000;
   else state.draftItems.push({id_producto:product.id,nombre:product.nombre,cantidad:quantity,precio:numeric(product.lista_1)});
   renderDraftItems();updateOperationTotal();
   $("#opProductSearch").value="";state.productSearchResults=[];state.productSearchIndex=0;$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");
   const hint=$("#opProductSearchHint");hint.textContent=`Agregado: ${number(quantity)} × ${product.nombre}${existing?" · cantidad acumulada":""}.`;hint.className="product-search-hint success";
   $("#opProductSearch").focus();
+}
+
+function openProductQuantity(product){
+  if(!product)return toast("Producto no encontrado.","error");
+  $("#quantityProductId").value=product.id;$("#quantityProductCode").textContent=product.id;$("#quantityProductName").textContent=product.nombre;$("#quantityProductPrice").textContent=money(product.lista_1);$("#quantityProductValue").value="";$("#opProductResults").classList.add("hidden");
+  $("#productQuantityDialog").showModal();setTimeout(()=>$("#quantityProductValue").focus(),50);
+}
+
+function addQuickProduct(productId){
+  const product=productById(productId),parsed=parseProductQuickQuery($("#opProductSearch").value);
+  if(!product)return toast("Producto no encontrado.","error");
+  if(parsed.quantity<=0)return toast("La cantidad debe ser mayor que cero.","error");
+  if(!parsed.explicitQuantity)return openProductQuantity(product);
+  commitQuickProduct(product,parsed.quantity);
+}
+
+function confirmProductQuantity(event){
+  event.preventDefault();const product=productById($("#quantityProductId").value),raw=$("#quantityProductValue").value.trim(),quantity=raw?numeric(raw):1;
+  if(!product)return toast("Producto no encontrado.","error");
+  if(quantity<=0)return toast("La cantidad debe ser mayor que cero.","error");
+  $("#productQuantityDialog").close();commitQuickProduct(product,quantity);
 }
 
 function openOperation(order=null) {
@@ -373,7 +393,7 @@ function openOperation(order=null) {
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");renderOperationClientResults();
   let matchedClient=false;if(order){const candidates=state.source.clientes.filter(c=>normalize(c.nombre)===normalize(order.cliente));if(candidates.length===1){selectOperationClient(candidates[0].id);matchedClient=true}else toast(candidates.length>1?"Hay más de un cliente con ese nombre. Elegí el correcto.":"El cliente del pedido no coincide con la ficha. Elegilo antes de guardar.");}
-  $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.";
+  $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se pregunta antes de agregar. Acepta *, x y cantidades con coma.";
   renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();setTimeout(()=>$(matchedClient?"#opProductSearch":"#opClientSearch").focus(),80);
 }
 function renderDraftItems() {
@@ -568,7 +588,7 @@ function bindEvents(){
   $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go)}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op)showOperationDetail(op.dataset.operationDetail);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});
-  ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
+  ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#productQuantityForm").addEventListener("submit",confirmProductQuantity);$("#productQuantityDialog").addEventListener("close",()=>{if($("#operationDialog").open)setTimeout(()=>$("#opProductSearch").focus(),30)});$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
   $("#opClientSearch").addEventListener("input",()=>{state.clientSearchIndex=0;renderOperationClientResults()});$("#opClientSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveClientSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveClientSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const client=state.clientSearchResults[state.clientSearchIndex];if(client)selectOperationClient(client.id);else if($("#opClientSearch").value.trim())toast("No encontré ese cliente.","error")}else if(e.key==="Escape"){$("#opClientSearch").value="";renderOperationClientResults()}});$("#opClientResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-client]");if(row)selectOperationClient(row.dataset.opClient)});$("#btnChangeOperationClient").addEventListener("click",startOperationClientSearch);$("#btnOccasionalClient").addEventListener("click",startOccasionalClient);$("#btnCancelOccasionalClient").addEventListener("click",startOperationClientSearch);
   $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaidAmount").addEventListener("input",()=>{state.autoPaidAmount=false;updateOperationTotal()});$("#opPaymentMethod").addEventListener("change",e=>{const method=e.target.value,mixed=method==="MIXTO",check=method==="CHEQUE"||mixed,fullPayment=["EFECTIVO","TRANSFERENCIA"].includes(method);state.autoPaidAmount=fullPayment;if(method==="CUENTA_CORRIENTE")$("#opPaidAmount").value="0";$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});

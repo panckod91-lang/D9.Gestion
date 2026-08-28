@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.1.13-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.1.14-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -11,6 +11,7 @@ Versión actual: `v0.1.13-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Conversión de pedidos en remitos, proformas o notas de venta.
 - Creación manual de comprobantes.
 - Carga rápida de productos por código o descripción, con cantidad opcional (`3*F037`, `3xqueso`, `0,5*jamón`) y cantidad 1 por defecto.
+- Si se busca solamente el producto, abre un diálogo compacto de cantidad: Enter vacío agrega 1 y un segundo Enter confirma.
 - Suma automática de cantidades cuando se vuelve a cargar un producto ya agregado.
 - Búsqueda de clientes por código o cualquier parte del nombre, sin desplegar listados interminables.
 - Cliente ocasional con nombre propio y un identificador interno independiente.
