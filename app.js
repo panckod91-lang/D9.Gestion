@@ -35,6 +35,9 @@ const state = {
   currentView:"home",
   masterTab:"clients",
   draftItems:[],
+  clientSearchResults:[],
+  clientSearchIndex:0,
+  occasionalClientId:"",
   productSearchResults:[],
   productSearchIndex:0,
   currentOrder:null,
@@ -253,10 +256,59 @@ function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operacione
 function renderAll() { renderHome(); if(state.currentView!=="home")renderCurrentView(); }
 
 function populateSelectors() {
-  const clients=[...state.source.clientes].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"));
-  const options='<option value="">Seleccionar cliente…</option>'+clients.map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}${c.ciudad?` · ${esc(c.ciudad)}`:""}</option>`).join("");
-  $("#opClient").innerHTML=options;
+  if($("#opClient")&&!$("#operationDialog")?.open)$("#opClient").value="";
 }
+
+function operationClients(){return [...state.source.clientes].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
+
+function clientSearchRank(client,term){
+  const q=normalize(term),id=normalize(client.id),name=normalize(client.nombre);
+  if(id===q)return 0;
+  if(id.startsWith(q))return 1;
+  if(name.startsWith(q))return 2;
+  if(id.includes(q))return 3;
+  if(name.includes(q))return 4;
+  return 5;
+}
+
+function renderOperationClientResults(){
+  const input=$("#opClientSearch"),results=$("#opClientResults"),hint=$("#opClientSearchHint");
+  if(!input||!results||!hint)return;
+  const term=input.value.trim();
+  hint.classList.remove("error","success");
+  if(!term){state.clientSearchResults=[];state.clientSearchIndex=0;results.innerHTML="";results.classList.add("hidden");hint.textContent="Escribí el código o cualquier parte del nombre.";return}
+  const rows=operationClients().filter(c=>matchesSearch([c.id,c.nombre],term)).sort((a,b)=>clientSearchRank(a,term)-clientSearchRank(b,term)||String(a.nombre).localeCompare(String(b.nombre),"es")).slice(0,12);
+  state.clientSearchResults=rows;state.clientSearchIndex=Math.min(state.clientSearchIndex,Math.max(0,rows.length-1));
+  if(!rows.length){results.innerHTML='<div class="empty compact-empty">No encontré ese cliente.</div>';results.classList.remove("hidden");hint.textContent=`Sin resultados para “${term}”.`;hint.classList.add("error");return}
+  hint.textContent="Enter selecciona el primer resultado.";
+  results.innerHTML=rows.map((c,index)=>`<button type="button" class="client-search-result ${index===state.clientSearchIndex?"selected":""}" data-op-client="${esc(c.id)}"><span><strong>${esc(c.id)} · ${esc(c.nombre)}</strong><small>${esc([c.direccion,c.ciudad].filter(Boolean).join(" · ")||"Cliente activo")}</small></span><b>Elegir</b></button>`).join("");
+  results.classList.remove("hidden");
+}
+
+function moveClientSearchSelection(direction){
+  if(!state.clientSearchResults.length)return;
+  state.clientSearchIndex=(state.clientSearchIndex+direction+state.clientSearchResults.length)%state.clientSearchResults.length;
+  $$(".client-search-result",$("#opClientResults")).forEach((row,index)=>row.classList.toggle("selected",index===state.clientSearchIndex));
+  $(".client-search-result.selected",$("#opClientResults"))?.scrollIntoView({block:"nearest"});
+}
+
+function selectOperationClient(clientId){
+  const client=clientById(clientId);if(!client)return toast("Cliente no encontrado.","error");
+  $("#opClient").value=client.id;$("#opClientSearch").value="";$("#opClientSearchBox").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#btnOccasionalClient").classList.add("hidden");
+  $("#opClientSelectedName").textContent=client.nombre;$("#opClientSelectedMeta").textContent=`Código ${client.id}${client.ciudad?` · ${client.ciudad}`:""}`;$("#opClientSelected").classList.remove("hidden");
+  state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";$("#opClientResults").innerHTML="";$("#opClientResults").classList.add("hidden");
+}
+
+function startOperationClientSearch(){
+  $("#opClient").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");
+  state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";renderOperationClientResults();setTimeout(()=>$("#opClientSearch").focus(),30);
+}
+
+function startOccasionalClient(){
+  $("#opClient").value="";$("#opClientSearch").value="";$("#opClientSearchBox").classList.add("hidden");$("#opClientSelected").classList.add("hidden");$("#btnOccasionalClient").classList.add("hidden");$("#opOccasionalFields").classList.remove("hidden");
+  state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId=`OCASIONAL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;setTimeout(()=>$("#opOccasionalName").focus(),30);
+}
+
 function operationProducts(){return state.source.productos.filter(p=>numeric(p.lista_1)>0)}
 
 function parseProductQuickQuery(value=""){
@@ -315,12 +367,13 @@ function addQuickProduct(productId){
 
 function openOperation(order=null) {
   state.currentOrder=order; state.draftItems=(order?.items||[]).map(i=>({id_producto:i.id_producto||i.id, nombre:i.nombre||i.detalle, cantidad:numeric(i.cantidad||i.total), precio:numeric(i.precio)}));
-  state.productSearchResults=[];state.productSearchIndex=0;
+  state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";state.productSearchResults=[];state.productSearchIndex=0;
   $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
-  if(order){const candidates=state.source.clientes.filter(c=>normalize(c.nombre)===normalize(order.cliente));if(candidates.length===1)$("#opClient").value=candidates[0].id;else toast(candidates.length>1?"Hay más de un cliente con ese nombre. Elegí el correcto.":"El cliente del pedido no coincide con la ficha. Elegilo antes de guardar.");}
+  $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");renderOperationClientResults();
+  let matchedClient=false;if(order){const candidates=state.source.clientes.filter(c=>normalize(c.nombre)===normalize(order.cliente));if(candidates.length===1){selectOperationClient(candidates[0].id);matchedClient=true}else toast(candidates.length>1?"Hay más de un cliente con ese nombre. Elegí el correcto.":"El cliente del pedido no coincide con la ficha. Elegilo antes de guardar.");}
   $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se agrega 1. Acepta *, x y cantidades con coma.";
-  renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();setTimeout(()=>$("#opProductSearch").focus(),80);
+  renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();setTimeout(()=>$(matchedClient?"#opProductSearch":"#opClientSearch").focus(),80);
 }
 function renderDraftItems() {
   $("#opItems").innerHTML=state.draftItems.length?state.draftItems.map((item,index)=>`<div class="item-row" data-item-index="${index}"><div class="item-product-summary"><input data-item-product type="hidden" value="${esc(item.id_producto)}"><small>${esc(item.id_producto||"SIN CÓDIGO")}</small><strong>${esc(item.nombre||productById(item.id_producto)?.nombre||"Producto")}</strong></div><label>Cantidad<input data-item-qty type="number" min="0.001" step="0.001" inputmode="decimal" value="${esc(item.cantidad)}"></label><label>Precio<input data-item-price type="number" min="0" step="0.01" inputmode="decimal" value="${esc(item.precio)}"></label><div class="line-total">${money(Number(item.cantidad)*Number(item.precio))}</div><button class="remove-item" data-item-remove type="button" aria-label="Eliminar ${esc(item.nombre||"producto")}">×</button></div>`).join(""):'<div class="empty compact-empty">Todavía no agregaste productos.</div>';
@@ -339,7 +392,10 @@ function refreshAfterMutation(){setSync("Guardado · actualizando…");void load
 async function saveOperation(event) {
   event.preventDefault(); syncDraftFromDom();
   const items=state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!items.length)return toast("Agregá al menos un producto.","error");
-  const cliente=clientById($("#opClient").value); if(!cliente)return toast("Elegí el cliente correcto.","error");
+  const occasionalMode=!$("#opOccasionalFields").classList.contains("hidden"),occasionalName=$("#opOccasionalName").value.trim();
+  const cliente=occasionalMode?{id:state.occasionalClientId,nombre:occasionalName}:clientById($("#opClient").value);
+  if(occasionalMode&&!occasionalName)return toast("Escribí el nombre del cliente ocasional.","error");
+  if(!cliente?.id||!cliente?.nombre)return toast("Buscá y elegí el cliente correcto.","error");
   const total=operationTotal(),payments=readPayments("op"),paid=payments.reduce((s,p)=>s+Number(p.importe),0);if(paid>total+.01)return toast("El pago inicial no puede superar el total.","error");if($("#opPaymentMethod").value!=="CUENTA_CORRIENTE"&&!payments.length)return toast("Ingresá el importe pagado.","error");
   const payload={tipo:$("#opType").value,fecha:$("#opDate").value,cliente_id:cliente.id,cliente:cliente.nombre,origen_pedido_id:$("#opSourceOrder").value,descuento_pct:Number($("#opDiscount").value)||0,observaciones:$("#opNotes").value.trim(),items,pagos_iniciales:payments};
   const btn=$("#btnSaveOperation");btn.disabled=true;btn.textContent="Guardando…";
@@ -512,9 +568,9 @@ function bindEvents(){
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});
   ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
+  $("#opClientSearch").addEventListener("input",()=>{state.clientSearchIndex=0;renderOperationClientResults()});$("#opClientSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveClientSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveClientSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const client=state.clientSearchResults[state.clientSearchIndex];if(client)selectOperationClient(client.id);else if($("#opClientSearch").value.trim())toast("No encontré ese cliente.","error")}else if(e.key==="Escape"){$("#opClientSearch").value="";renderOperationClientResults()}});$("#opClientResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-client]");if(row)selectOperationClient(row.dataset.opClient)});$("#btnChangeOperationClient").addEventListener("click",startOperationClientSearch);$("#btnOccasionalClient").addEventListener("click",startOccasionalClient);$("#btnCancelOccasionalClient").addEventListener("click",startOperationClientSearch);
   $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opPaidAmount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaymentMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
-  $("#btnOccasionalClient").addEventListener("click",()=>toast("En la primera versión los clientes nuevos se cargan desde el maestro para conservar un único ID."));
   [["#ordersSearch",renderOrders],["#ordersDate",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
   $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());
   $("#btnReloadOrders").addEventListener("click",loadAll);$$("[data-master-tab]").forEach(b=>b.addEventListener("click",()=>{$$("[data-master-tab]").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.masterTab=b.dataset.masterTab;renderMasters()}));

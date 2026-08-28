@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -135,7 +135,24 @@
       <div class="form-grid">
         <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option></select></label>
         <label>Fecha<input id="opDate" type="date" required></label>
-        <label class="wide">Cliente<div class="combo-row"><select id="opClient" required></select><button id="btnOccasionalClient" type="button" class="btn secondary">Cliente ocasional</button></div></label>
+        <div class="wide operation-client-field">
+          <span class="field-label">Cliente</span>
+          <input id="opClient" type="hidden">
+          <div id="opClientSearchBox" class="client-quick-add">
+            <input id="opClientSearch" type="search" autocomplete="off" placeholder="Código o parte del nombre">
+            <div id="opClientSearchHint" class="client-search-hint">Escribí el código o cualquier parte del nombre.</div>
+            <div id="opClientResults" class="client-search-results hidden"></div>
+          </div>
+          <div id="opClientSelected" class="selected-client operation-selected-client hidden">
+            <span><strong id="opClientSelectedName"></strong><small id="opClientSelectedMeta"></small></span>
+            <button id="btnChangeOperationClient" type="button" class="mini-btn">Cambiar</button>
+          </div>
+          <div id="opOccasionalFields" class="occasional-client-fields hidden">
+            <label>Nombre del cliente ocasional<input id="opOccasionalName" maxlength="120" autocomplete="off" placeholder="Ej: Juan Pérez"></label>
+            <button id="btnCancelOccasionalClient" type="button" class="mini-btn">Elegir cliente de la lista</button>
+          </div>
+          <button id="btnOccasionalClient" type="button" class="btn secondary occasional-client-button">Cliente ocasional</button>
+        </div>
       </div>
       <section class="editor-section">
         <div class="section-head"><div><h3>Productos</h3><p>Buscá por código o descripción. La cantidad puede modificarse después.</p></div></div>
@@ -198,7 +215,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=11"></script>
-  <script src="app.js?v=11"></script>
+  <script src="config.js?v=12"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
