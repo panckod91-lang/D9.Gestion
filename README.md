@@ -2,7 +2,7 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.2.0-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.4.0-dev`, conectada al despliegue **D9 Gestión DEV**.
 
 ## Primera base funcional
 
@@ -32,12 +32,23 @@ Versión actual: `v0.2.0-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Versión visible en la sesión de escritorio y en el menú móvil “Más”.
 - Ale queda identificado como administrador mediante `ADMIN_USER_IDS` en las propiedades del Script.
 - Administración individual de productos sobre la Sheet central: alta, edición, categorías, marcas, estado y precios.
+- Categoría y marca con sugerencias tomadas de los productos existentes, manteniendo la posibilidad de escribir una nueva.
+- La pantalla Productos y precios muestra únicamente productos; Clientes y Usuarios se incorporarán luego como módulos separados.
+- Una sesión vencida vuelve inmediatamente al ingreso aunque existan datos locales en pantalla.
 - Detección automática de todas las columnas `lista_N` existentes en productos.
 - Actualización masiva de precios por porcentaje o importe, con filtros, lista de origen/destino, redondeo y vista previa.
 - Control de concurrencia optimista: si un precio cambió desde la vista previa, la actualización completa se cancela.
 - Auditoría de altas, modificaciones individuales y cambios masivos en la Sheet propia de Gestión.
 - Bloqueo de seguridad `SOURCE_WRITES_ENABLED`: la primera publicación permite revisar todo sin escribir en D9_pedidos.
 - Al crear comprobantes manuales, Gestión toma la lista asignada al cliente y usa Lista 1 como respaldo.
+- Módulo Clientes separado de Productos: alta, edición, búsqueda, activos/ocultos y asignación de `lista_precio`.
+- Perfil fiscal opcional con razón social, documento, condición IVA, domicilio fiscal, localidad, provincia, código postal y email.
+- Indicador calculado `Sin datos fiscales`, `Datos fiscales incompletos` o `Listo para facturar`.
+- El Script agrega las columnas fiscales faltantes al final de `clientes`, sin insertar, mover ni renombrar las columnas que consume D9 Pedidos.
+- Guardado defensivo por encabezado: solo se actualizan los campos administrados del cliente y se preservan columnas ajenas.
+- Acceso directo desde cada ficha de cliente a su cuenta corriente.
+- Administración de ofertas en una hoja `ofertas`, con precio, vigencia y estado, sin modificar las listas normales.
+- En comprobantes, una oferta vigente se aplica al agregar el producto y puede quitarse o volver a activarse por línea.
 
 ## Arquitectura
 
@@ -46,11 +57,11 @@ D9 Gestión (Cloudflare Pages)
         ↓
 D9 Gestión Script (Apps Script separado)
         ├── lee → Sheet central D9
-        ├── administra productos/precios → Sheet central D9
+        ├── administra productos, precios y clientes → Sheet central D9
         └── registra comprobantes/cobranzas → Sheet D9 Gestión
 ```
 
-No usa Firebase. Esta versión no modifica `D9 Script PROD` ni el Worker de pedidos.
+No usa Firebase. Para publicar ofertas en D9 Pedidos se actualiza `D9 Script PROD`; el Worker no cambia.
 
 ## Archivos
 
@@ -71,8 +82,7 @@ No usa Firebase. Esta versión no modifica `D9 Script PROD` ni el Worker de pedi
 ## Pendiente antes de producción
 
 - Probar impresión en la impresora real de Ale y ajustar el A5.
-- Incorporar edición controlada de clientes, usuarios, parámetros y publicidad de D9 Admin.
+- Incorporar usuarios, parámetros y publicidad de D9 Admin.
 - Coordinar listas dinámicas nuevas con D9 Pedidos y D9 Script PROD antes de crear Lista 4 o superiores.
-- Incorporar la hoja `ofertas` y su consumo desde D9 Pedidos.
 - Agregar exportación y respaldo.
 - Hacer pruebas de concurrencia y recuperación ante una escritura incompleta.
