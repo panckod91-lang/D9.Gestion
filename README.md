@@ -2,7 +2,11 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.4.0-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.4.1-dev`, conectada al despliegue **D9 Gestión DEV**.
+
+## v0.4.1-dev
+
+- Agrega Productos en oferta al menú lateral de escritorio, igual que en el menú móvil Más.
 
 ## Primera base funcional
 
