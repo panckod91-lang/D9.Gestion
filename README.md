@@ -2,7 +2,12 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.4.1-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.4.2-dev`, conectada al despliegue **D9 Gestión DEV**.
+
+## v0.4.2-dev
+
+- Los productos con oferta se cargan en comprobantes con su precio normal.
+- La oferta se aplica únicamente al pulsar el botón de la línea.
 
 ## v0.4.1-dev
 
@@ -52,7 +57,7 @@ Versión actual: `v0.4.1-dev`, conectada al despliegue **D9 Gestión DEV**.
 - Guardado defensivo por encabezado: solo se actualizan los campos administrados del cliente y se preservan columnas ajenas.
 - Acceso directo desde cada ficha de cliente a su cuenta corriente.
 - Administración de ofertas en una hoja `ofertas`, con precio, vigencia y estado, sin modificar las listas normales.
-- En comprobantes, una oferta vigente se aplica al agregar el producto y puede quitarse o volver a activarse por línea.
+- En comprobantes, una oferta vigente se informa al agregar el producto y puede aplicarse o quitarse por línea.
 
 ## Arquitectura
 
