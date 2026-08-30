@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=51">
+  <link rel="stylesheet" href="styles.css?v=52">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -82,8 +82,8 @@
         </section>
 
         <section id="view-operaciones" class="view">
-          <div class="page-head"><div><h2>Comprobantes</h2><p>Remitos y proformas creados en Gestión.</p></div><button id="btnNewOperation2" class="btn primary">＋ Nuevo</button></div>
-          <div class="filters"><input id="operationsSearch" placeholder="Buscar número, cliente u origen"><select id="operationsStatus"><option value="active">Vigentes</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
+          <div class="page-head"><div><h2>Comprobantes</h2><p>Remitos, facturas pro forma y notas de venta creados en Gestión.</p></div><button id="btnNewOperation2" class="btn primary">＋ Nuevo</button></div>
+          <div class="filters"><input id="operationsSearch" placeholder="Buscar número, cliente u origen"><select id="operationsType"><option value="">Todos los tipos</option><option value="REMITO">Remitos · R</option><option value="PROFORMA">Facturas pro forma · FPF</option><option value="NOTA_VENTA">Notas de venta · NDV</option></select><select id="operationsStatus"><option value="active">Vigentes</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
           <div id="operationsList" class="card-list empty">Todavía no hay comprobantes.</div>
         </section>
 
@@ -353,7 +353,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=51"></script>
-  <script src="app.js?v=51"></script>
+  <script src="config.js?v=52"></script>
+  <script src="app.js?v=52"></script>
 </body>
 </html>

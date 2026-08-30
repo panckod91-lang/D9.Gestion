@@ -44,7 +44,7 @@ const state = {
   currentOrder:null,
   operationPriceList:"lista_1",
   cacheLoaded:false,
-  fullOrdersLoaded:false,
+  ordersRangeActive:false,
   bulkPriceChanges:[]
 };
 
@@ -134,7 +134,7 @@ function applyBootstrap(data) {
   if(data.user){state.user=data.user;localStorage.setItem(STORAGE.user,JSON.stringify(state.user));showApp()}
   state.permissions={source_admin:!!data.permissions?.source_admin,source_writes_enabled:!!data.permissions?.source_writes_enabled};
   state.source={
-    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], pedidos:state.fullOrdersLoaded?state.source.pedidos:(data.source?.pedidos||[]), ofertas:data.source?.ofertas||[]
+    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ofertas:data.source?.ofertas||[]
   };
   state.gestion={
     operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], config:data.gestion?.config||{}
@@ -170,12 +170,12 @@ function showView(name) {
   const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios",clientes:"Clientes",ofertas:"Productos en oferta",config:"Configuración"};
   $("#viewTitle").textContent=labels[name]||"Gestión"; window.scrollTo({top:0,behavior:"smooth"});
   renderCurrentView();
-  if(name==="pedidos"&&!state.fullOrdersLoaded)loadOrdersHistory();
 }
 
 async function loadOrdersHistory(){
-  const button=$("#btnReloadOrders");button.disabled=true;button.textContent="Cargando…";setSync("Cargando historial de pedidos…");
-  try{const data=await apiGet("pedidos");state.source.pedidos=data.pedidos||[];state.fullOrdersLoaded=true;populateSelectors();renderOrders();saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
+  const from=$("#ordersFrom").value,to=$("#ordersTo").value;if(from&&to&&from>to)return toast("La fecha desde no puede ser posterior a la fecha hasta.","error");
+  const button=$("#btnReloadOrders");button.disabled=true;button.textContent="Cargando…";setSync(from||to?"Buscando pedidos del período…":"Cargando pedidos recientes…");
+  try{const data=await apiGet("pedidos",{from,to});state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);populateSelectors();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
   catch(err){toast(err.message||"No se pudo cargar el historial de pedidos.","error");setSync("No se pudo actualizar Pedidos",true)}
   finally{button.disabled=false;button.textContent="↻ Actualizar"}
 }
@@ -228,7 +228,7 @@ function filteredOrders(){
 function orderTotal(o){const lines=(o.items||[]).reduce((sum,item)=>sum+numeric(item.subtotal||numeric(item.cantidad)*numeric(item.precio)),0);return numeric(o.total||o.total_pedido)||lines}
 function renderOrders() {
   const rows=filteredOrders(),lines=rows.reduce((sum,o)=>sum+(o.items||[]).length,0),total=rows.reduce((sum,o)=>sum+orderTotal(o),0);
-  $("#ordersSummary").textContent=`${rows.length} pedidos · ${lines} líneas · Total ${money(total)}`;
+  const range=$("#ordersFrom").value||$("#ordersTo").value?"período elegido":"últimos 3 días";$("#ordersSummary").textContent=`${rows.length} pedidos · ${lines} líneas · Total ${money(total)} · ${range}`;
   const el=$("#ordersList");el.className="orders-history";el.innerHTML=rows.map((o,index)=>`
     <details class="order-history-card ${isAnnulled(o.estado)?"annulled":""}" style="--seller-hue:${(index*47)%360}">
       <summary><div><strong>${esc(o.cliente||"Sin cliente")}${isAnnulled(o.estado)?' <span class="pill red">ANULADO</span>':""}</strong><small>${formatDate(o.fecha_iso||o.fecha)} · ${esc(o.vendedor||"Sin vendedor")}${o.nota_pedido?" · Nota pedido":""}</small></div><div class="order-summary-side"><span>${esc(o.pedido_id)}</span><b>${money(orderTotal(o))}</b></div>${!isAnnulled(o.estado)?`<button type="button" class="mini-btn primary order-create-quick" data-order-import="${esc(o.pedido_id)}"><span>Crear comprobante</span><b>Usar</b></button>`:'<span></span>'}<span class="order-chevron">⌄</span></summary>
@@ -249,9 +249,9 @@ function shareOrdersWhatsApp(){
 }
 
 function renderOperations() {
-  const q=normalize($("#operationsSearch").value), status=$("#operationsStatus").value;
+  const q=normalize($("#operationsSearch").value),type=$("#operationsType").value,status=$("#operationsStatus").value;
   const rows=[...state.gestion.operaciones].sort((a,b)=>String(b.created_at||b.fecha).localeCompare(String(a.created_at||a.fecha))).filter(o=>{
-    const annul=isAnnulled(o.estado); if(status==="active"&&annul)return false;if(status==="annulled"&&!annul)return false;
+    const annul=isAnnulled(o.estado);if(type&&String(o.tipo).toUpperCase()!==type)return false;if(status==="active"&&annul)return false;if(status==="annulled"&&!annul)return false;
     return matchesSearch([o.numero,formatOperationNumber(o.numero),o.tipo,o.cliente,o.origen_pedido_id],q);
   });
   $("#operationsList").className="card-list"; $("#operationsList").innerHTML=rows.map(o=>`
@@ -789,9 +789,9 @@ function bindEvents(){
   $("#opClientSearch").addEventListener("input",()=>{state.clientSearchIndex=0;renderOperationClientResults()});$("#opClientSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveClientSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveClientSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const client=state.clientSearchResults[state.clientSearchIndex];if(client)selectOperationClient(client.id);else if($("#opClientSearch").value.trim())toast("No encontré ese cliente.","error")}else if(e.key==="Escape"){$("#opClientSearch").value="";renderOperationClientResults()}});$("#opClientResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-client]");if(row)selectOperationClient(row.dataset.opClient)});$("#btnChangeOperationClient").addEventListener("click",startOperationClientSearch);$("#btnOccasionalClient").addEventListener("click",startOccasionalClient);$("#btnCancelOccasionalClient").addEventListener("click",startOperationClientSearch);
   $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaidAmount").addEventListener("input",()=>{state.autoPaidAmount=false;updateOperationTotal()});$("#opPaymentMethod").addEventListener("change",e=>{const method=e.target.value,mixed=method==="MIXTO",check=method==="CHEQUE"||mixed,fullPayment=["EFECTIVO","TRANSFERENCIA"].includes(method);state.autoPaidAmount=fullPayment;if(method==="CUENTA_CORRIENTE")$("#opPaidAmount").value="0";$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
-  [["#ordersSearch",renderOrders],["#ordersFrom",renderOrders],["#ordersTo",renderOrders],["#ordersSeller",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters],["#clientsSearch",renderClients],["#clientsPriceList",renderClients],["#clientsStatus",renderClients],["#clientsFiscal",renderClients]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
+  [["#ordersSearch",renderOrders],["#ordersSeller",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsType",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters],["#clientsSearch",renderClients],["#clientsPriceList",renderClients],["#clientsStatus",renderClients],["#clientsFiscal",renderClients]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
   $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());$("#btnNewProduct").addEventListener("click",()=>openProductEditor());$("#btnBulkPrices").addEventListener("click",openBulkPrices);$("#productForm").addEventListener("submit",saveProduct);$("#bulkPriceForm").addEventListener("submit",applyBulkPrices);$("#btnRefreshBulkPreview").addEventListener("click",calculateBulkPreview);$("#mastersPriceList").addEventListener("change",renderMasters);$("#btnNewClient").addEventListener("click",()=>openClientEditor());$("#clientForm").addEventListener("submit",saveClient);$$("#clientFiscalDetails input, #clientFiscalDetails select").forEach(input=>input.addEventListener("input",updateClientFiscalStatus));$("#btnNewOffer").addEventListener("click",()=>openOfferEditor());$("#offerForm").addEventListener("submit",saveOffer);$("#offersSearch").addEventListener("input",renderOffers);$("#offersStatus").addEventListener("change",renderOffers);
-  $("#ordersList").addEventListener("click",event=>{if(event.target.closest(".order-create-quick"))event.preventDefault()});$("#btnReloadOrders").addEventListener("click",loadOrdersHistory);$("#btnOrdersPdf").addEventListener("click",printOrdersReport);$("#btnOrdersWhatsApp").addEventListener("click",shareOrdersWhatsApp);
+  ["#ordersFrom","#ordersTo"].forEach(selector=>$(selector).addEventListener("change",loadOrdersHistory));$("#ordersList").addEventListener("click",event=>{if(event.target.closest(".order-create-quick"))event.preventDefault()});$("#btnReloadOrders").addEventListener("click",loadOrdersHistory);$("#btnOrdersPdf").addEventListener("click",printOrdersReport);$("#btnOrdersWhatsApp").addEventListener("click",shareOrdersWhatsApp);
 }
 
 async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});}

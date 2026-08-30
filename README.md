@@ -2,7 +2,13 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.5.1-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.5.2-dev`, conectada al despliegue **D9 Gestión DEV**.
+
+## v0.5.2-dev
+
+- Pedidos muestra por defecto únicamente los últimos 3 días.
+- Un rango de fechas consulta el período elegido bajo demanda.
+- Comprobantes agrega filtro por Remito, Factura pro forma y Nota de venta.
 
 ## v0.5.1-dev
 
