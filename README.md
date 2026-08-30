@@ -2,7 +2,18 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.4.2-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.5.1-dev`, conectada al despliegue **D9 Gestión DEV**.
+
+## v0.5.1-dev
+
+- Devuelve a cada pedido el acceso directo visible para crear un comprobante, sin tener que desplegar el detalle.
+
+## v0.5.0-dev
+
+- Numeración independiente y autocorrectiva por tipo: `R`, `FPF` y `NDV`.
+- Historial de pedidos con búsqueda, rango de fechas, vendedor, estado y detalle desplegable.
+- Reporte filtrado de pedidos para PDF A4 y WhatsApp.
+- Productos, precios, clientes y ofertas se reflejan apenas el servidor confirma el guardado; la sincronización completa continúa en segundo plano.
 
 ## v0.4.2-dev
 
