@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=42">
+  <link rel="stylesheet" href="styles.css?v=50">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -74,7 +74,10 @@
 
         <section id="view-pedidos" class="view">
           <div class="page-head"><div><h2>Pedidos</h2><p>Pedidos cargados desde D9 Pedidos.</p></div><button id="btnReloadOrders" class="btn secondary">↻ Actualizar</button></div>
-          <div class="filters"><input id="ordersSearch" placeholder="Buscar cliente, vendedor, pedido o producto"><input id="ordersDate" type="date"><select id="ordersStatus"><option value="active">Activos</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
+          <section class="panel orders-filter-panel">
+            <div class="filters orders-filters"><input id="ordersSearch" placeholder="Buscar cliente, producto, código o anulados"><input id="ordersFrom" type="date" aria-label="Desde"><input id="ordersTo" type="date" aria-label="Hasta"><select id="ordersSeller"><option value="">Todos los vendedores</option></select><select id="ordersStatus"><option value="active">Activos</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
+            <div class="orders-toolbar"><p id="ordersSummary" class="list-summary">Sin pedidos cargados.</p><div class="row-actions"><button id="btnOrdersPdf" class="btn secondary" type="button">📄 PDF A4</button><button id="btnOrdersWhatsApp" class="btn secondary" type="button">🧾 WhatsApp</button></div></div>
+          </section>
           <div id="ordersList" class="card-list empty">Sin pedidos para mostrar.</div>
         </section>
 
@@ -350,7 +353,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=42"></script>
-  <script src="app.js?v=42"></script>
+  <script src="config.js?v=50"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>
