@@ -190,15 +190,31 @@ function paymentCheck(payment) {
 function activeOperations() { return state.gestion.operaciones.filter(o=>!isAnnulled(o.estado)); }
 function clientById(id) { return state.source.clientes.find(c=>String(c.id)===String(id)); }
 function productById(id) { return state.source.productos.find(p=>String(p.id)===String(id)); }
+function isOccasionalId(id){return /^OCASIONAL-/i.test(String(id||""))}
+function occasionalIdentityKey(name){return normalize(name).replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}
+function newOccasionalId(){return `OCASIONAL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`}
+function occasionalProfiles(){
+  const map=new Map();
+  [...state.gestion.operaciones].sort((a,b)=>String(b.created_at||b.fecha).localeCompare(String(a.created_at||a.fecha))).forEach(operation=>{
+    const id=String(operation.cliente_id||""),name=String(operation.cliente||"").trim(),key=occasionalIdentityKey(name);
+    if(!isOccasionalId(id)||!key)return;
+    if(!map.has(key))map.set(key,{id,nombre:name,_occasional:true,ids:[]});
+    const profile=map.get(key);if(!profile.ids.includes(id))profile.ids.push(id);
+  });
+  return [...map.values()].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+}
+function occasionalProfileById(id){return occasionalProfiles().find(profile=>profile.ids.includes(String(id)))}
+function accountByReference(reference){return accountRows().find(account=>String(account.cliente_id)===String(reference)||account.client_ids.includes(String(reference)))}
 
 function accountRows() {
   const map=new Map();
   state.gestion.movimientos.filter(m=>!isAnnulled(m.estado)).forEach(m=>{
     const id=String(m.cliente_id||""); if(!id) return;
-    if(!map.has(id)) map.set(id,{cliente_id:id,cliente:m.cliente||clientById(id)?.nombre||"Cliente",debe:0,haber:0,movimientos:[]});
-    const a=map.get(id); a.debe+=numeric(m.debe); a.haber+=numeric(m.haber); a.movimientos.push(m);
+    const name=m.cliente||clientById(id)?.nombre||"Cliente",identity=occasionalIdentityKey(name),key=isOccasionalId(id)&&identity?`OCASIONAL:${identity}`:`CLIENTE:${id}`;
+    if(!map.has(key)) map.set(key,{cliente_id:id,client_ids:[],cliente:name,debe:0,haber:0,movimientos:[],occasional:isOccasionalId(id)});
+    const a=map.get(key);if(!a.client_ids.includes(id))a.client_ids.push(id);a.debe+=numeric(m.debe);a.haber+=numeric(m.haber);a.movimientos.push(m);
   });
-  return [...map.values()].map(a=>({...a,saldo:a.debe-a.haber})).sort((a,b)=>b.saldo-a.saldo);
+  return [...map.values()].map(a=>{const profile=a.occasional?occasionalProfiles().find(item=>occasionalIdentityKey(item.nombre)===occasionalIdentityKey(a.cliente)):null;return {...a,cliente_id:profile?.id||a.cliente_id,client_ids:[...new Set([...(profile?.ids||[]),...a.client_ids])],saldo:a.debe-a.haber}}).sort((a,b)=>b.saldo-a.saldo);
 }
 
 function renderHome() {
@@ -473,7 +489,7 @@ function populateSelectors() {
   const seller=$("#ordersSeller");if(seller){const current=seller.value,map=new Map();state.source.pedidos.forEach(o=>{const key=String(o.vendedor_id||o.vendedor||"");if(key&&!map.has(key))map.set(key,o.vendedor||o.vendedor_id)});seller.innerHTML='<option value="">Todos los vendedores</option>'+[...map].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),"es")).map(([key,label])=>`<option value="${esc(key)}">${esc(label)}</option>`).join("");if([...map].some(([key])=>key===current))seller.value=current}
 }
 
-function operationClients(){return [...state.source.clientes].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
+function operationClients(){return [...state.source.clientes,...occasionalProfiles()].sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
 
 function clientSearchRank(client,term){
   const q=normalize(term),id=normalize(client.id),name=normalize(client.nombre);
@@ -495,7 +511,7 @@ function renderOperationClientResults(){
   state.clientSearchResults=rows;state.clientSearchIndex=Math.min(state.clientSearchIndex,Math.max(0,rows.length-1));
   if(!rows.length){results.innerHTML='<div class="empty compact-empty">No encontré ese cliente.</div>';results.classList.remove("hidden");hint.textContent=`Sin resultados para “${term}”.`;hint.classList.add("error");return}
   hint.textContent="Enter selecciona el primer resultado.";
-  results.innerHTML=rows.map((c,index)=>`<button type="button" class="client-search-result ${index===state.clientSearchIndex?"selected":""}" data-op-client="${esc(c.id)}"><span><strong>${esc(c.id)} · ${esc(c.nombre)}</strong><small>${esc([c.direccion,c.ciudad].filter(Boolean).join(" · ")||"Cliente activo")}</small></span><b>Elegir</b></button>`).join("");
+  results.innerHTML=rows.map((c,index)=>`<button type="button" class="client-search-result ${index===state.clientSearchIndex?"selected":""}" data-op-client="${esc(c.id)}"><span><strong>${c._occasional?"":`${esc(c.id)} · `}${esc(c.nombre)}</strong><small>${c._occasional?`Ocasional anterior · ${c.ids.length} identidad${c.ids.length===1?"":"es"} vinculada${c.ids.length===1?"":"s"}`:esc([c.direccion,c.ciudad].filter(Boolean).join(" · ")||"Cliente activo")}</small></span><b>Elegir</b></button>`).join("");
   results.classList.remove("hidden");
 }
 
@@ -507,11 +523,11 @@ function moveClientSearchSelection(direction){
 }
 
 function selectOperationClient(clientId){
-  const client=clientById(clientId);if(!client)return toast("Cliente no encontrado.","error");
-  const assigned=String(client.lista_precio||"lista_1");state.operationPriceList=priceLists().some(list=>list.id===assigned)?assigned:"lista_1";
+  const client=clientById(clientId)||occasionalProfileById(clientId);if(!client)return toast("Cliente no encontrado.","error");
+  const assigned=String(client.lista_precio||"lista_1");state.operationPriceList=priceLists().some(list=>list.id===assigned)?assigned:"lista_1";state.occasionalClientId=client._occasional?client.id:"";
   $("#opClient").value=client.id;$("#opClientSearch").value="";$("#opClientSearchBox").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#btnOccasionalClient").classList.add("hidden");
-  $("#opClientSelectedName").textContent=client.nombre;$("#opClientSelectedMeta").textContent=`Código ${client.id}${client.ciudad?` · ${client.ciudad}`:""} · ${priceListLabel(state.operationPriceList)}`;$("#opClientSelected").classList.remove("hidden");
-  state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";$("#opClientResults").innerHTML="";$("#opClientResults").classList.add("hidden");
+  $("#opClientSelectedName").textContent=client.nombre;$("#opClientSelectedMeta").textContent=client._occasional?"Cliente ocasional anterior · conserva su cuenta corriente":`Código ${client.id}${client.ciudad?` · ${client.ciudad}`:""} · ${priceListLabel(state.operationPriceList)}`;$("#opClientSelected").classList.remove("hidden");
+  state.clientSearchResults=[];state.clientSearchIndex=0;$("#opClientResults").innerHTML="";$("#opClientResults").classList.add("hidden");
 }
 
 function startOperationClientSearch(){
@@ -521,7 +537,7 @@ function startOperationClientSearch(){
 
 function startOccasionalClient(){
   $("#opClient").value="";$("#opClientSearch").value="";$("#opClientSearchBox").classList.add("hidden");$("#opClientSelected").classList.add("hidden");$("#btnOccasionalClient").classList.add("hidden");$("#opOccasionalFields").classList.remove("hidden");
-  state.clientSearchResults=[];state.clientSearchIndex=0;state.operationPriceList="lista_1";state.occasionalClientId=`OCASIONAL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;setTimeout(()=>$("#opOccasionalName").focus(),30);
+  state.clientSearchResults=[];state.clientSearchIndex=0;state.operationPriceList="lista_1";state.occasionalClientId=newOccasionalId();$("#opOccasionalOptions").innerHTML=occasionalProfiles().map(profile=>`<option value="${esc(profile.nombre)}"></option>`).join("");setTimeout(()=>$("#opOccasionalName").focus(),30);
 }
 
 function productPriceForOperation(product){const field=state.operationPriceList||"lista_1",selected=numeric(product?.[field]);return selected>0?selected:numeric(product?.lista_1)}
@@ -629,8 +645,8 @@ function refreshAfterMutation(){setSync("Guardado · actualizando…");void load
 async function saveOperation(event) {
   event.preventDefault(); syncDraftFromDom();
   const items=state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!items.length)return toast("Agregá al menos un producto.","error");
-  const occasionalMode=!$("#opOccasionalFields").classList.contains("hidden"),occasionalName=$("#opOccasionalName").value.trim();
-  const cliente=occasionalMode?{id:state.occasionalClientId,nombre:occasionalName}:clientById($("#opClient").value);
+  const selectedOccasional=occasionalProfileById($("#opClient").value),occasionalMode=!$("#opOccasionalFields").classList.contains("hidden")||!!selectedOccasional,occasionalName=selectedOccasional?.nombre||$("#opOccasionalName").value.trim();
+  const cliente=occasionalMode?{id:selectedOccasional?.id||state.occasionalClientId,nombre:occasionalName}:clientById($("#opClient").value);
   if(occasionalMode&&!occasionalName)return toast("Escribí el nombre del cliente ocasional.","error");
   if(!cliente?.id||!cliente?.nombre)return toast("Buscá y elegí el cliente correcto.","error");
   const total=operationTotal(),payments=readPayments("op"),paid=payments.reduce((s,p)=>s+Number(p.importe),0);if(paid>total+.01)return toast("El pago inicial no puede superar el total.","error");if($("#opPaymentMethod").value!=="CUENTA_CORRIENTE"&&!payments.length)return toast("Ingresá el importe pagado.","error");
@@ -649,7 +665,7 @@ function renderReceiptClientPicker(query=""){
   $("#receiptClientResults").innerHTML=rows.map(a=>`<button type="button" class="client-pick ${String(a.cliente_id)===String(selectedId)?"selected":""}" data-receipt-client="${esc(a.cliente_id)}"><span><strong>${esc(a.cliente)}</strong><small>Saldo pendiente</small></span><b>${money(a.saldo)}</b></button>`).join("")||'<div class="empty compact-empty">No encontré clientes con deuda.</div>';
 }
 function selectReceiptClient(clientId){
-  const account=debtAccounts().find(a=>String(a.cliente_id)===String(clientId));
+  const account=debtAccounts().find(a=>String(a.cliente_id)===String(clientId)||a.client_ids.includes(String(clientId)));
   $("#receiptClient").value=account?.cliente_id||"";
   $("#receiptClientSearch").value=account?.cliente||"";
   const selected=$("#receiptClientSelected");
@@ -668,11 +684,11 @@ function openReceipt(clientId="") {
   $("#receiptDialog").showModal();if(!clientId)setTimeout(()=>$("#receiptClientSearch").focus(),80);
 }
 function updateReceiptOperations(){
-  const cid=$("#receiptClient").value;
-  const ops=activeOperations().filter(o=>String(o.cliente_id)===String(cid)&&numeric(o.saldo)>.005);
+  const account=accountByReference($("#receiptClient").value),ids=account?.client_ids||[];
+  const ops=activeOperations().filter(o=>ids.includes(String(o.cliente_id))&&numeric(o.saldo)>.005);
   $("#receiptOperation").innerHTML='<option value="">A cuenta, sin comprobante específico</option>'+ops.map(o=>`<option value="${esc(o.operacion_id)}">${esc(o.tipo)} ${esc(formatOperationNumber(o.numero))} · saldo ${money(o.saldo)}</option>`).join("");
   if(ops.length===1){$("#receiptOperation").value=ops[0].operacion_id;$("#receiptAmount").value=numeric(ops[0].saldo).toFixed(2)}
-  else if(!cid)$("#receiptAmount").value="";
+  else if(!account)$("#receiptAmount").value="";
 }
 function readCheckFields(prefix){return {banco:$(`#${prefix}CheckBank`).value.trim(),numero:$(`#${prefix}CheckNumber`).value.trim(),librador:$(`#${prefix}CheckIssuer`).value.trim(),fecha_vencimiento:$(`#${prefix}CheckDue`).value};}
 function readPayments(prefix){const method=$(prefix==="op"?"#opPaymentMethod":"#receiptMethod").value,amountEl=$(prefix==="op"?"#opPaidAmount":"#receiptAmount"),reference=$(prefix==="op"?"#opPaymentReference":"#receiptReference").value.trim();if(method==="CUENTA_CORRIENTE")return[];if(method!=="MIXTO"){const importe=Number(amountEl.value)||0;return importe>0?[{medio:method,importe,referencia:reference,cheque:method==="CHEQUE"?readCheckFields(prefix):null}]:[];}const cash=Number($(`#${prefix}MixedCash`).value)||0,transfer=Number($(`#${prefix}MixedTransfer`).value)||0,check=Number($(`#${prefix}MixedCheck`).value)||0;return [{medio:"EFECTIVO",importe:cash,referencia:""},{medio:"TRANSFERENCIA",importe:transfer,referencia:$(`#${prefix}MixedReference`).value.trim()},{medio:"CHEQUE",importe:check,referencia:"",cheque:readCheckFields(prefix)}].filter(p=>p.importe>0)}
@@ -688,12 +704,12 @@ function stageCreatedReceipt(data,payload,payments,amount,operation){
 async function saveReceipt(event){
   event.preventDefault();const btn=$("#btnSaveReceipt");setReceiptMessage();
   try{
-    const client=clientById($("#receiptClient").value);if(!client)throw new Error("Elegí un cliente con saldo pendiente.");
+    const account=accountByReference($("#receiptClient").value);if(!account)throw new Error("Elegí un cliente con saldo pendiente.");
     if(!$("#receiptDate").value)throw new Error("Elegí la fecha del recibo.");
     const payments=readPayments("receipt"),amount=payments.reduce((s,p)=>s+numeric(p.importe),0);if(amount<=0)throw new Error("Ingresá el importe recibido.");
     if($("#receiptMethod").value==="CHEQUE"){const c=readCheckFields("receipt");if(!c.banco||!c.numero||!c.fecha_vencimiento)throw new Error("Para el cheque faltan banco, número o vencimiento.")}
     const op=activeOperations().find(o=>String(o.operacion_id)===String($("#receiptOperation").value));if(op&&amount>numeric(op.saldo)+.01)throw new Error(`El pago supera el saldo de ${money(op.saldo)}.`);
-    const payload={fecha:$("#receiptDate").value,cliente_id:client.id,cliente:client.nombre,importe:amount,pagos:payments,operacion_id:$("#receiptOperation").value,observaciones:$("#receiptNotes").value.trim()};
+    const payload={fecha:$("#receiptDate").value,cliente_id:op?.cliente_id||account.cliente_id,cliente:op?.cliente||account.cliente,importe:amount,pagos:payments,operacion_id:$("#receiptOperation").value,observaciones:$("#receiptNotes").value.trim()};
     btn.disabled=true;btn.textContent="Guardando…";setReceiptMessage("Guardando el recibo…","working");
     const data=await apiPost("create_recibo",payload);stageCreatedReceipt(data,payload,payments,amount,op);$("#receiptDialog").close();toast(`Recibo ${data.numero} guardado`);showReceiptDetail(data.recibo_id,false);refreshAfterMutation();
   }catch(err){setReceiptMessage(err.message||"No se pudo guardar el recibo.","error");}
@@ -704,7 +720,7 @@ function showOrderDetail(id){const o=state.source.pedidos.find(x=>String(x.pedid
 function showOperationDetail(id,autoPrint=false){const o=state.gestion.operaciones.find(x=>String(x.operacion_id)===String(id));if(!o)return;const displayNumber=formatOperationNumber(o.numero),type=operationTypeLabel(o.tipo);const html=detailHeader([["Número",`${type} ${displayNumber}`],["Fecha",formatDate(o.fecha)],["Cliente",o.cliente],["Estado",o.estado],["Total",money(o.total)],["Saldo",money(o.saldo)]])+itemsTable(operationItems(id))+`<p>${esc(o.observaciones||"")}</p>`;openDetail(`${type} ${displayNumber}`,html,`<button class="btn primary" data-operation-print="${esc(id)}">Imprimir media A4</button>`);if(autoPrint)setTimeout(()=>printOperation(id),250)}
 function receiptPaymentDetail(payment){const c=paymentCheck(payment);return `<section class="payment-detail"><div class="payment-detail-head"><div><small>Medio de pago</small><strong>${esc(payment.medio)}</strong></div><b>${money(payment.importe)}</b></div>${payment.referencia?`<p><b>Referencia:</b> ${esc(payment.referencia)}</p>`:""}${c?`<h4>Datos del cheque</h4>${detailHeader([["Banco",c.banco||"—"],["Número",c.numero||"—"],["Librador",c.librador||"—"],["Vencimiento",formatDate(c.fecha_vencimiento)],["Estado",c.estado||"EN_CARTERA"]])}`:""}</section>`}
 function showReceiptDetail(id,autoPrint=false){const r=state.gestion.recibos.find(x=>String(x.recibo_id)===String(id));if(!r)return;const pays=receiptPayments(id);const html=detailHeader([["Fecha",formatDate(r.fecha)],["Cliente",r.cliente],["Importe",money(r.total)],["Estado",r.estado],["Aplicado a",r.operacion_numero?formatOperationNumber(r.operacion_numero):"A cuenta"]])+pays.map(receiptPaymentDetail).join("")+(r.observaciones?`<p><b>Observaciones:</b> ${esc(r.observaciones)}</p>`:"");openDetail(`Recibo ${r.numero}`,html,`<button class="btn primary" data-receipt-print="${esc(id)}">Imprimir</button>`);if(autoPrint)setTimeout(()=>printReceipt(id),250)}
-function showAccountDetail(id){const a=accountRows().find(x=>String(x.cliente_id)===String(id));if(!a)return;const rows=[...a.movimientos].sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha))).map(m=>`<tr><td>${formatDate(m.fecha)}</td><td>${esc(m.tipo)}</td><td>${esc(displayDocumentNumber(m.documento_tipo,m.documento_numero))}</td><td>${money(m.debe)}</td><td>${money(m.haber)}</td></tr>`).join("");openDetail(a.cliente,detailHeader([["Total debitado",money(a.debe)],["Total pagado",money(a.haber)],["Saldo",money(a.saldo)]])+`<table class="detail-lines"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Documento</th><th>Debe</th><th>Haber</th></tr></thead><tbody>${rows}</tbody></table>`,`<button class="btn primary" data-account-receipt="${esc(id)}">Ingresar pago</button>`)}
+function showAccountDetail(id){const a=accountByReference(id);if(!a)return;const rows=[...a.movimientos].sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha))).map(m=>`<tr><td>${formatDate(m.fecha)}</td><td>${esc(m.tipo)}</td><td>${esc(displayDocumentNumber(m.documento_tipo,m.documento_numero))}</td><td>${money(m.debe)}</td><td>${money(m.haber)}</td></tr>`).join("");openDetail(a.cliente,detailHeader([["Total debitado",money(a.debe)],["Total pagado",money(a.haber)],["Saldo",money(a.saldo)]])+`<table class="detail-lines"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Documento</th><th>Debe</th><th>Haber</th></tr></thead><tbody>${rows}</tbody></table>`,`<button class="btn primary" data-account-receipt="${esc(a.cliente_id)}">Ingresar pago</button>`)}
 function detailHeader(items){return `<div class="detail-grid">${items.map(([a,b])=>`<div class="detail-box"><small>${esc(a)}</small><strong>${esc(b)}</strong></div>`).join("")}</div>`}
 function itemsTable(items){return `<table class="detail-lines"><thead><tr><th>Producto</th><th>Cant.</th><th>Unit.</th><th>Total</th></tr></thead><tbody>${items.map(i=>`<tr><td>${esc(i.nombre||i.producto||i.detalle)}</td><td>${number(i.cantidad||i.total)}</td><td>${money(i.precio||i.precio_unitario)}</td><td>${money(i.subtotal||i.total_item||numeric(i.cantidad||i.total)*numeric(i.precio||i.precio_unitario))}</td></tr>`).join("")}</tbody></table>`}
 function openDetail(title,body,actions=""){ $("#detailTitle").textContent=title;$("#detailBody").innerHTML=body;$("#detailActions").innerHTML=actions;$("#detailDialog").showModal(); }
@@ -809,6 +825,7 @@ function bindEvents(){
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});
   ["#btnNewOperation","#btnNewOperation2"].forEach(s=>$(s).addEventListener("click",()=>openOperation()));$("#btnNewReceipt").addEventListener("click",()=>openReceipt());$("#operationForm").addEventListener("submit",saveOperation);$("#productQuantityForm").addEventListener("submit",confirmProductQuantity);$("#productQuantityDialog").addEventListener("close",()=>{if($("#operationDialog").open)setTimeout(()=>$("#opProductSearch").focus(),30)});$("#receiptForm").addEventListener("submit",saveReceipt);$("#configForm").addEventListener("submit",saveConfig);
   $("#opClientSearch").addEventListener("input",()=>{state.clientSearchIndex=0;renderOperationClientResults()});$("#opClientSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveClientSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveClientSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const client=state.clientSearchResults[state.clientSearchIndex];if(client)selectOperationClient(client.id);else if($("#opClientSearch").value.trim())toast("No encontré ese cliente.","error")}else if(e.key==="Escape"){$("#opClientSearch").value="";renderOperationClientResults()}});$("#opClientResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-client]");if(row)selectOperationClient(row.dataset.opClient)});$("#btnChangeOperationClient").addEventListener("click",startOperationClientSearch);$("#btnOccasionalClient").addEventListener("click",startOccasionalClient);$("#btnCancelOccasionalClient").addEventListener("click",startOperationClientSearch);
+  $("#opOccasionalName").addEventListener("input",e=>{const profile=occasionalProfiles().find(item=>occasionalIdentityKey(item.nombre)===occasionalIdentityKey(e.target.value));state.occasionalClientId=profile?.id||newOccasionalId()});
   $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaidAmount").addEventListener("input",()=>{state.autoPaidAmount=false;updateOperationTotal()});$("#opPaymentMethod").addEventListener("change",e=>{const method=e.target.value,mixed=method==="MIXTO",check=method==="CHEQUE"||mixed,fullPayment=["EFECTIVO","TRANSFERENCIA"].includes(method);state.autoPaidAmount=fullPayment;if(method==="CUENTA_CORRIENTE")$("#opPaidAmount").value="0";$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
   [["#ordersSearch",renderOrders],["#ordersSeller",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsType",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters],["#clientsSearch",renderClients],["#clientsPriceList",renderClients],["#clientsStatus",renderClients],["#clientsFiscal",renderClients]].forEach(([s,fn])=>$(s).addEventListener("input",fn));

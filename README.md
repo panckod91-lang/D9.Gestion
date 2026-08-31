@@ -2,7 +2,14 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.1-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.2-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.2-dev
+
+- Los clientes ocasionales históricos aparecen como sugerencia al generar un comprobante.
+- Al reutilizar un ocasional se conserva su identidad y se acumula la cuenta corriente.
+- Los ocasionales históricos con el mismo nombre normalizado se muestran como una sola cuenta.
+- Ya se pueden emitir recibos para clientes ocasionales y aplicarlos a cualquiera de sus comprobantes pendientes.
 
 ## v0.6.1-dev
 
