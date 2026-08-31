@@ -2,7 +2,14 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.5.2-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.0-dev`, conectada al despliegue **D9 Gestión DEV**.
+
+## v0.6.0-dev
+
+- Incorpora el módulo completo de Publicidad de D9 Admin.
+- Lista, busca, crea y edita banners de imagen completa o producto con textos.
+- Administra orden, estado, imágenes, enlace y vista previa responsive.
+- Guarda por encabezado en la pestaña `publicidad` de D9_pedidos y actualiza la pantalla inmediatamente.
 
 ## v0.5.2-dev
 
@@ -108,7 +115,7 @@ No usa Firebase. Para publicar ofertas en D9 Pedidos se actualiza `D9 Script PRO
 ## Pendiente antes de producción
 
 - Probar impresión en la impresora real de Ale y ajustar el A5.
-- Incorporar usuarios, parámetros y publicidad de D9 Admin.
+- Incorporar estadísticas y usuarios de D9 Admin.
 - Coordinar listas dinámicas nuevas con D9 Pedidos y D9 Script PROD antes de crear Lista 4 o superiores.
 - Agregar exportación y respaldo.
 - Hacer pruebas de concurrencia y recuperación ante una escritura incompleta.

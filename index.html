@@ -51,6 +51,7 @@
           <button class="desktop-only" data-view="cheques"><span>🏦</span>Cheques</button>
           <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y precios</button>
           <button class="desktop-only" data-view="ofertas"><span>🔥</span>Productos en oferta</button>
+          <button class="desktop-only" data-view="publicidad"><span>🖼️</span>Publicidad</button>
           <button class="desktop-only" data-view="clientes"><span>🏪</span>Clientes</button>
           <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
@@ -141,6 +142,14 @@
           <div class="filters"><input id="offersSearch" type="search" placeholder="Buscar código, producto, categoría o marca"><select id="offersStatus"><option value="current">Vigentes hoy</option><option value="all">Todas</option><option value="active">Activas, incluidas futuras</option><option value="inactive">Desactivadas</option></select></div>
           <p id="offersSummary" class="list-summary"></p>
           <div id="offersList" class="card-list empty">Todavía no hay ofertas.</div>
+        </section>
+
+        <section id="view-publicidad" class="view">
+          <div class="page-head"><div><h2>Publicidad</h2><p>Banners y carrusel que se muestran en D9 Pedidos.</p></div><button id="btnNewAd" class="btn primary" type="button">＋ Nuevo banner</button></div>
+          <div id="adAdminNotice" class="admin-toolbar"><span class="helper">Las imágenes se cargan mediante URL y las listas de precios no se modifican.</span></div>
+          <div class="filters"><input id="adsSearch" type="search" placeholder="Buscar banner, título, texto o enlace"><select id="adsStatus"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Desactivados</option></select></div>
+          <p id="adsSummary" class="list-summary"></p>
+          <div id="adsList" class="card-list empty">Todavía no hay banners.</div>
         </section>
 
         <section id="view-config" class="view">
@@ -254,6 +263,7 @@
       <button type="button" data-go="cheques"><span>🏦</span><div><strong>Cheques</strong><small>Vencimientos y estados</small></div><b>›</b></button>
       <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y precios</strong><small>Administración de la Sheet original</small></div><b>›</b></button>
       <button type="button" data-go="ofertas"><span>🔥</span><div><strong>Productos en oferta</strong><small>Precio temporal, sin tocar las listas</small></div><b>›</b></button>
+      <button type="button" data-go="publicidad"><span>🖼️</span><div><strong>Publicidad</strong><small>Banners y carrusel de D9 Pedidos</small></div><b>›</b></button>
       <button type="button" data-go="clientes"><span>🏪</span><div><strong>Clientes</strong><small>Listas, datos comerciales y fiscales</small></div><b>›</b></button>
       <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
     </div>
@@ -351,9 +361,32 @@
     </form>
   </dialog>
 
+  <dialog id="adDialog" class="dialog ad-dialog">
+    <form id="adForm" method="dialog">
+      <div class="dialog-head"><div><small>PUBLICIDAD</small><h2 id="adDialogTitle">Nuevo banner</h2></div><button type="button" class="dialog-close" data-close="adDialog">×</button></div>
+      <p class="helper">Imagen completa usa una pieza horizontal. Producto combina textos con una imagen recortada.</p>
+      <div class="form-grid">
+        <label>ID<input id="adId" maxlength="60" required></label>
+        <label>Orden<input id="adOrder" inputmode="numeric" required></label>
+        <label>Estado<select id="adActive"><option value="si">Activo</option><option value="no">Desactivado</option></select></label>
+        <label>Tipo<select id="adMode"><option value="full">Imagen completa</option><option value="producto">Producto · texto + imagen</option></select></label>
+        <label class="ad-product-field">Etiqueta / tag<input id="adTag" maxlength="120"></label>
+        <label class="ad-product-field">Título<input id="adTitle" maxlength="180"></label>
+        <label class="ad-product-field">Texto 1<input id="adText1" maxlength="220"></label>
+        <label class="ad-product-field">Texto 2<input id="adText2" maxlength="220"></label>
+        <label class="wide ad-product-field">Imagen del producto URL<input id="adProductImage" type="url" placeholder="https://..."></label>
+        <label class="wide ad-full-field">Imagen horizontal URL<input id="adFullImage" type="url" placeholder="https://..."></label>
+        <label class="wide">Enlace al tocar el banner<input id="adLink" type="url" placeholder="https://..."><small>Puede quedar vacío si el banner no abre ningún sitio.</small></label>
+      </div>
+      <section class="subpanel ad-preview-panel"><h3>Vista previa</h3><div id="adPreview" class="ad-preview"></div></section>
+      <p id="adFormMessage" class="form-message hidden"></p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="adDialog">Cancelar</button><button id="btnSaveAd" class="btn primary big" type="submit">Guardar banner</button></div>
+    </form>
+  </dialog>
+
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=52"></script>
-  <script src="app.js?v=52"></script>
+  <script src="config.js?v=60"></script>
+  <script src="app.js?v=60"></script>
 </body>
 </html>
