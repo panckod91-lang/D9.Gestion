@@ -2,7 +2,13 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.0-dev`, conectada al despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.1-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.1-dev
+
+- Cambia el frontend a la nueva implementación web de D9 Gestión.
+- Renueva la caché de la PWA para descartar la URL archivada.
+- Conserva sin cambios el backend `v0.6.0` y el módulo completo de Publicidad.
 
 ## v0.6.0-dev
 
