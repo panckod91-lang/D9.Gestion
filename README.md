@@ -2,7 +2,12 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.7-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.8-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.8-dev
+
+- Corrige los botones Guardar y Eliminar cliente que podían quedar deshabilitados por un permiso antiguo cargado desde caché.
+- La interfaz habilita las acciones al administrador y el Apps Script conserva la validación definitiva antes de escribir o eliminar.
 
 ## v0.6.7-dev
 

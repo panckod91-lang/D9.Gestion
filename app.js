@@ -493,12 +493,12 @@ function openClientEditor(clientId=""){
   fillPriceListSelect($("#clientPriceList"),clientAssignedList(client));
   $("#clientLegalName").value=client?.razon_social||"";$("#clientDocumentType").value=client?.tipo_documento||(client?.cuit?"CUIT":"");$("#clientDocumentNumber").value=client?.numero_documento||client?.cuit||"";$("#clientVatCondition").value=client?.condicion_iva||"";$("#clientFiscalAddress").value=client?.domicilio_fiscal||"";$("#clientFiscalCity").value=client?.localidad_fiscal||"";$("#clientFiscalProvince").value=client?.provincia_fiscal||"";$("#clientPostalCode").value=client?.codigo_postal||"";$("#clientBillingEmail").value=client?.email_facturacion||"";
   const fiscalState=clientFiscalState(client||{});$("#clientFiscalDetails").open=fiscalState.id!=="empty";updateClientFiscalStatus();
-  $("#btnSaveClient").disabled=!sourceWritesEnabled();$("#btnSaveClient").title=sourceWritesEnabled()?"":"Activá SOURCE_WRITES_ENABLED para guardar en la Sheet central.";
-  $("#btnDeleteClient").classList.toggle("hidden",!client);$("#btnDeleteClient").dataset.clientId=client?.id||"";$("#btnDeleteClient").disabled=!sourceWritesEnabled();
+  $("#btnSaveClient").disabled=!isAdmin();$("#btnSaveClient").title=isAdmin()?"":"Sólo el administrador puede modificar clientes.";
+  $("#btnDeleteClient").classList.toggle("hidden",!client);$("#btnDeleteClient").dataset.clientId=client?.id||"";$("#btnDeleteClient").disabled=!isAdmin();
   $("#clientFormMessage").classList.add("hidden");$("#clientDialog").showModal();setTimeout(()=>$(client?"#clientName":"#clientId").focus(),60);
 }
 async function saveClient(event){
-  event.preventDefault();if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
+  event.preventDefault();if(!isAdmin())return toast("Esta sesión no puede modificar clientes.","error");
   const fiscal=readClientFiscalForm(),documentDigits=onlyDigits(fiscal.numero_documento);
   const cliente={id:$("#clientId").value.trim(),nombre:$("#clientName").value.trim(),telefono:$("#clientPhone").value.trim(),direccion:$("#clientAddress").value.trim(),ciudad:$("#clientCity").value.trim(),lista_precio:$("#clientPriceList").value||"lista_1",activo:$("#clientActive").value,...fiscal,cuit:fiscal.tipo_documento==="CUIT"?documentDigits:""};
   if(!cliente.id||!cliente.nombre)return toast("ID y nombre comercial son obligatorios.","error");
@@ -508,7 +508,7 @@ async function saveClient(event){
   finally{button.disabled=false;button.textContent="Guardar cliente"}
 }
 async function deleteClient(){
-  if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
+  if(!isAdmin())return toast("Esta sesión no puede eliminar clientes.","error");
   const button=$("#btnDeleteClient"),id=String(button.dataset.clientId||"").trim(),client=adminClients().find(item=>String(item.id)===id),message=$("#clientFormMessage");
   if(!id||!client)return toast("No encontré el cliente que querés eliminar.","error");
   const originalText=button.textContent;button.disabled=true;button.textContent="Revisando…";message.classList.add("hidden");
@@ -524,7 +524,7 @@ async function deleteClient(){
     state.source.clientes_admin=state.source.clientes_admin.filter(item=>String(item.id)!==id);state.source.clientes=state.source.clientes.filter(item=>String(item.id)!==id);saveCurrentCache();
     $("#clientDialog").close();hydrateClientFilters();renderClients();renderOrders();toast(result.message||"Cliente eliminado");refreshAfterMutation();
   }catch(err){message.textContent=err.message;message.className="form-message error";message.classList.remove("hidden")}
-  finally{button.disabled=!sourceWritesEnabled();button.textContent=originalText}
+  finally{button.disabled=!isAdmin();button.textContent=originalText}
 }
 
 function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,clientes:renderClients,ofertas:renderOffers,publicidad:renderPublicidad}[state.currentView]||(()=>{}))(); }
