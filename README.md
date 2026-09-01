@@ -2,7 +2,16 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.8-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.7.0-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.7.0-dev
+
+- Agrega vendedor asignado a la ficha de cada cliente y filtro por vendedor.
+- Incorpora asignación rápida con sugerencias calculadas desde el historial de pedidos.
+- Los comprobantes nuevos guardan una copia del vendedor para preservar futuras comisiones aunque cambie la asignación del cliente.
+- Crea la pestaña Reportes y estrena Ventas por vendedor, con período, desglose de pagos iniciales, totales para caja e impresión/PDF A4.
+- Los comprobantes anteriores intentan recuperar su vendedor desde el pedido de origen o desde la ficha actual del cliente.
+- Actualiza el backend a `0.7.0`; las columnas nuevas se agregan automáticamente sin reordenar las existentes.
 
 ## v0.6.8-dev
 

@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=52">
+  <link rel="stylesheet" href="styles.css?v=70">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -53,6 +53,7 @@
           <button class="desktop-only" data-view="ofertas"><span>🔥</span>Productos en oferta</button>
           <button class="desktop-only" data-view="publicidad"><span>🖼️</span>Publicidad</button>
           <button class="desktop-only" data-view="clientes"><span>🏪</span>Clientes</button>
+          <button class="desktop-only" data-view="reportes"><span>📊</span>Reportes</button>
           <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
         <div class="sidebar-user"><small>Sesión</small><strong id="sessionName">—</strong><span id="sessionRole">—</span><small id="appVersion" class="app-version">—</small></div>
@@ -124,11 +125,12 @@
         </section>
 
         <section id="view-clientes" class="view">
-          <div class="page-head"><div><h2>Clientes</h2><p>Datos comerciales, lista asignada y perfil fiscal de la Sheet central.</p></div><button id="btnNewClient" class="btn primary" type="button">＋ Nuevo cliente</button></div>
-          <div id="clientAdminNotice" class="admin-toolbar client-admin-notice"><span class="helper">Los datos fiscales son opcionales hasta emitir una factura legal.</span></div>
+          <div class="page-head"><div><h2>Clientes</h2><p>Datos comerciales, vendedor, lista asignada y perfil fiscal de la Sheet central.</p></div><button id="btnNewClient" class="btn primary" type="button">＋ Nuevo cliente</button></div>
+          <div class="admin-toolbar client-admin-actions"><button id="btnAssignSellers" class="btn secondary" type="button">👤 Asignar vendedores</button><span id="clientAdminNotice" class="helper">Los datos fiscales son opcionales hasta emitir una factura legal.</span></div>
           <div class="filters client-filters">
             <input id="clientsSearch" type="search" placeholder="Buscar código, nombre, CUIT, teléfono o dirección">
             <select id="clientsPriceList"><option value="">Todas las listas</option></select>
+            <select id="clientsSeller"><option value="">Todos los vendedores</option><option value="__NONE__">Sin vendedor asignado</option></select>
             <select id="clientsStatus"><option value="active">Activos</option><option value="all">Todos</option><option value="inactive">Ocultos</option></select>
             <select id="clientsFiscal"><option value="all">Todos los datos fiscales</option><option value="complete">Listos para facturar</option><option value="incomplete">Datos fiscales incompletos</option><option value="empty">Sin datos fiscales</option></select>
           </div>
@@ -150,6 +152,17 @@
           <div class="filters"><input id="adsSearch" type="search" placeholder="Buscar banner, título, texto o enlace"><select id="adsStatus"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Desactivados</option></select></div>
           <p id="adsSummary" class="list-summary"></p>
           <div id="adsList" class="card-list empty">Todavía no hay banners.</div>
+        </section>
+
+        <section id="view-reportes" class="view">
+          <div class="page-head"><div><h2>Reportes</h2><p>Información operativa para caja, vendedores y administración.</p></div></div>
+          <section class="panel report-panel">
+            <div class="panel-head"><div><h3>Ventas por vendedor</h3><p>Comprobantes vigentes y forma de pago inicial.</p></div><button id="btnPrintSalesReport" class="btn secondary" type="button">📄 Imprimir / PDF</button></div>
+            <div class="filters report-filters"><label>Desde<input id="reportSalesFrom" type="date"></label><label>Hasta<input id="reportSalesTo" type="date"></label><label>Vendedor<select id="reportSalesSeller"><option value="">Todos los vendedores</option></select></label></div>
+            <div id="salesReportSummary" class="report-summary"></div>
+            <div id="salesReportList" class="report-table-wrap empty">No hay ventas para el período.</div>
+          </section>
+          <section class="panel future-reports"><div class="panel-head"><div><h3>Próximos reportes</h3><p>Esta pestaña queda preparada para crecer sin recargar Inicio.</p></div></div><div class="report-coming-grid"><span>💵 Cobranzas</span><span>📒 Resúmenes de cuenta</span><span>🎯 Comisiones</span><span>📈 Estadísticas</span></div></section>
         </section>
 
         <section id="view-config" class="view">
@@ -174,6 +187,7 @@
       <div class="form-grid">
         <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option></select></label>
         <label>Fecha<input id="opDate" type="date" required></label>
+        <label class="wide">Vendedor<select id="opSeller"><option value="">Sin vendedor asignado</option></select><small>Se guarda dentro del comprobante para conservar el historial de comisiones.</small></label>
         <div class="wide operation-client-field">
           <span class="field-label">Cliente</span>
           <input id="opClient" type="hidden">
@@ -265,6 +279,7 @@
       <button type="button" data-go="ofertas"><span>🔥</span><div><strong>Productos en oferta</strong><small>Precio temporal, sin tocar las listas</small></div><b>›</b></button>
       <button type="button" data-go="publicidad"><span>🖼️</span><div><strong>Publicidad</strong><small>Banners y carrusel de D9 Pedidos</small></div><b>›</b></button>
       <button type="button" data-go="clientes"><span>🏪</span><div><strong>Clientes</strong><small>Listas, datos comerciales y fiscales</small></div><b>›</b></button>
+      <button type="button" data-go="reportes"><span>📊</span><div><strong>Reportes</strong><small>Ventas, caja y vendedores</small></div><b>›</b></button>
       <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
     </div>
     <p id="appVersionMore" class="version-more">—</p>
@@ -319,6 +334,7 @@
           <label class="wide">Nombre comercial<input id="clientName" maxlength="180" required placeholder="Como se lo conoce habitualmente"></label>
           <label>Teléfono<input id="clientPhone" maxlength="80" inputmode="tel"></label>
           <label>Lista de precios<select id="clientPriceList"></select></label>
+          <label>Vendedor asignado<select id="clientSeller"><option value="">Sin vendedor asignado</option></select></label>
           <label class="wide">Dirección de entrega<input id="clientAddress" maxlength="220"></label>
           <label>Ciudad<input id="clientCity" maxlength="120"></label>
         </div>
@@ -385,9 +401,19 @@
     </form>
   </dialog>
 
+  <dialog id="sellerAssignmentDialog" class="dialog wide-dialog seller-assignment-dialog">
+    <div class="dialog-head"><div><small>CLIENTES</small><h2>Asignación rápida de vendedores</h2></div><button type="button" class="dialog-close" data-close="sellerAssignmentDialog">×</button></div>
+    <p class="helper">Las sugerencias se calculan con el vendedor más frecuente de los pedidos anteriores de cada cliente.</p>
+    <div class="seller-assignment-tools"><input id="sellerAssignmentSearch" type="search" placeholder="Buscar cliente"><label class="check-label"><input id="sellerAssignmentMissing" type="checkbox" checked> Mostrar sólo sin asignar</label><button id="btnApplySellerSuggestions" class="btn secondary" type="button">✨ Aplicar sugerencias</button></div>
+    <p id="sellerAssignmentSummary" class="list-summary"></p>
+    <div id="sellerAssignmentList" class="seller-assignment-list empty">Cargando clientes…</div>
+    <p id="sellerAssignmentMessage" class="form-message hidden"></p>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close="sellerAssignmentDialog">Cancelar</button><button id="btnSaveSellerAssignments" type="button" class="btn primary big">Guardar asignaciones</button></div>
+  </dialog>
+
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=68"></script>
-  <script src="app.js?v=68"></script>
+  <script src="config.js?v=70"></script>
+  <script src="app.js?v=70"></script>
 </body>
 </html>
