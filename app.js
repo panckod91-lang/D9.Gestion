@@ -242,7 +242,7 @@ function orderActionButtons(order,quick=false){
   const latest=used[0],count=used.length,title=count===1?`Abre ${operationTypeLabel(latest.tipo)} ${formatOperationNumber(latest.numero)}`:`Abre el más reciente de ${count} comprobantes`;
   return `<button type="button" class="mini-btn order-used${quickClass}" data-operation-detail="${esc(latest.operacion_id)}" title="${esc(title)}"><span>Ya usado</span><b>✓ Usado</b></button><button type="button" class="mini-btn primary${quickClass}" data-order-import="${esc(order.pedido_id)}"><span>Reutilizar</span><b>Reusar</b></button>`;
 }
-function compactOrder(o) { return `<div class="compact-item"><div><strong>${esc(o.cliente||"Sin cliente")}</strong><small>${esc(o.fecha||"")} · ${esc(o.vendedor||"")}</small></div><div class="row-actions"><b>${money(o.total||o.total_pedido)}</b>${orderActionButtons(o)}</div></div>`; }
+function compactOrder(o) { return `<div class="compact-item"><div><strong>${esc(o.cliente||"Sin cliente")}</strong><small>${esc(o.fecha||"")} · ${esc(o.vendedor||"")}</small></div><div class="row-actions"><b>${money(o.total||o.total_pedido)}</b>${orderActionButtons(o,true)}</div></div>`; }
 
 function filteredOrders(){
   const q=$("#ordersSearch").value.trim(),from=$("#ordersFrom").value,to=$("#ordersTo").value,seller=$("#ordersSeller").value,status=$("#ordersStatus").value;

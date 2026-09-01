@@ -2,7 +2,12 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.5-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.6-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.6-dev
+
+- Corrige las etiquetas responsive de los botones de pedidos recientes en Inicio.
+- En PC muestra las acciones completas y reserva `Usar`, `✓ Usado` y `Reusar` para celular.
 
 ## v0.6.5-dev
 
