@@ -540,6 +540,16 @@ function startOccasionalClient(){
   state.clientSearchResults=[];state.clientSearchIndex=0;state.operationPriceList="lista_1";state.occasionalClientId=newOccasionalId();$("#opOccasionalOptions").innerHTML=occasionalProfiles().map(profile=>`<option value="${esc(profile.nombre)}"></option>`).join("");setTimeout(()=>$("#opOccasionalName").focus(),30);
 }
 
+function orderClientName(order){return String(order?.cliente||"").split("|")[0].trim()}
+function matchOrderClient(order){
+  const id=String(order?.cliente_id||"").trim();
+  if(id){const byId=state.source.clientes.filter(client=>String(client.id)===id);if(byId.length===1)return {client:byId[0],reason:"id"};if(byId.length>1)return {client:null,reason:"duplicate_id"}}
+  const name=orderClientName(order);if(!name)return {client:null,reason:"missing"};
+  const byName=state.source.clientes.filter(client=>normalize(client.nombre)===normalize(name));
+  if(byName.length===1)return {client:byName[0],reason:"name"};
+  return {client:null,reason:byName.length>1?"duplicate_name":"missing"};
+}
+
 function productPriceForOperation(product){const field=state.operationPriceList||"lista_1",selected=numeric(product?.[field]);return selected>0?selected:numeric(product?.lista_1)}
 function operationProducts(){return state.source.productos.filter(p=>productPriceForOperation(p)>0)}
 
@@ -623,7 +633,7 @@ function openOperation(order=null) {
   $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");renderOperationClientResults();
-  let matchedClient=false;if(order){const candidates=state.source.clientes.filter(c=>normalize(c.nombre)===normalize(order.cliente));if(candidates.length===1){selectOperationClient(candidates[0].id);matchedClient=true}else toast(candidates.length>1?"Hay más de un cliente con ese nombre. Elegí el correcto.":"El cliente del pedido no coincide con la ficha. Elegilo antes de guardar.");}
+  let matchedClient=false;if(order){const match=matchOrderClient(order);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Elegí el correcto.",missing:"El cliente del pedido no coincide con una ficha activa. Elegilo antes de guardar."};toast(messages[match.reason]||messages.missing,"error")}}
   $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se pregunta antes de agregar. Acepta *, x y cantidades con coma.";
   renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();setTimeout(()=>$(matchedClient?"#opProductSearch":"#opClientSearch").focus(),80);
 }

@@ -2,7 +2,13 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.2-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.3-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.3-dev
+
+- Al usar un pedido, Gestión vincula el cliente por `cliente_id` cuando está disponible.
+- Los pedidos históricos sin ID se reconocen por el nombre anterior al separador `|`.
+- Si existe más de una coincidencia, no elige automáticamente y pide revisión.
 
 ## v0.6.2-dev
 
