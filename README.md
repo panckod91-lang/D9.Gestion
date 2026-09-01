@@ -2,7 +2,14 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.6-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.7-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.7-dev
+
+- Permite eliminar clientes desde el editor, con análisis previo de referencias.
+- Bloquea la eliminación si el cliente tiene comprobantes, recibos o movimientos de cuenta corriente.
+- Los pedidos históricos permanecen intactos y pueden revincularse por nombre y domicilio si su ID fue eliminado.
+- Actualiza el backend a `0.6.3`.
 
 ## v0.6.6-dev
 
