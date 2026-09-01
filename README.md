@@ -2,7 +2,20 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.7.1-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.7.3-prod`, preparada para el despliegue único de **D9 Gestión**.
+
+## v0.7.3-prod
+
+- Agrega un tachito por cliente en “Asignación rápida de vendedores”.
+- Reutiliza la eliminación protegida: los pedidos históricos no bloquean, pero los comprobantes, recibos o movimientos financieros sí.
+- Al eliminar un cliente desde el modal conserva las demás asignaciones modificadas que todavía no fueron guardadas.
+- El cambio es solamente de frontend y mantiene sin cambios D9 Pedidos, D9 Admin, D9 Script PROD y el backend de Gestión `0.7.1`.
+- D9 Gestión no posee un entorno DEV separado: esta versión debe publicarse directamente después de completar las verificaciones locales.
+
+## v0.7.2-dev
+
+- Corrige la hora del reporte de ventas: los registros ISO/UTC se muestran explícitamente en `America/Argentina/Buenos_Aires`.
+- El cambio es solamente visual; no modifica comprobantes ni datos históricos.
 
 ## v0.7.1-dev
 
