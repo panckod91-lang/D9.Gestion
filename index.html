@@ -349,6 +349,7 @@
       <div class="form-grid">
         <label class="wide">Producto<input id="offerProduct" list="offerProductOptions" autocomplete="off" placeholder="Código o parte de la descripción" required><small>Elegí un producto del listado sugerido.</small></label>
         <datalist id="offerProductOptions"></datalist>
+        <div id="offerProductInfo" class="wide offer-product-info hidden"></div>
         <label>Precio de oferta<input id="offerPrice" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
         <label>Estado<select id="offerActive"><option value="si">Activa</option><option value="no">Desactivada</option></select></label>
         <label>Desde<input id="offerFrom" type="date"></label>
@@ -357,7 +358,7 @@
       </div>
       <p class="helper">Si dejás las fechas vacías, la oferta queda vigente mientras esté activa.</p>
       <p id="offerFormMessage" class="form-message hidden"></p>
-      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="offerDialog">Cancelar</button><button id="btnSaveOffer" class="btn primary big" type="submit">Guardar oferta</button></div>
+      <div class="dialog-actions offer-dialog-actions"><button id="btnDeleteOffer" type="button" class="btn danger hidden">Eliminar definitivamente</button><button type="button" class="btn secondary" data-close="offerDialog">Cancelar</button><button id="btnSaveOffer" class="btn primary big" type="submit">Guardar oferta</button></div>
     </form>
   </dialog>
 
@@ -386,7 +387,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=64"></script>
-  <script src="app.js?v=64"></script>
+  <script src="config.js?v=65"></script>
+  <script src="app.js?v=65"></script>
 </body>
 </html>

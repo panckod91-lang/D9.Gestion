@@ -2,7 +2,14 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.4-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.5-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.5-dev
+
+- Los pedidos que ya originaron un comprobante se identifican como `Ya usado` y permiten abrirlo o reutilizar el pedido en uno nuevo.
+- El editor de ofertas muestra el nombre completo del producto y su precio normal de Lista 1.
+- Las ofertas ahora pueden eliminarse definitivamente, con confirmación y registro de auditoría.
+- Actualiza el backend a `0.6.2` para admitir la eliminación real de ofertas.
 
 ## v0.6.4-dev
 
