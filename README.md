@@ -2,7 +2,13 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.7.0-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.7.1-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.7.1-dev
+
+- Corrige las sugerencias masivas de vendedor para pedidos históricos sin `cliente_id`: cruza primero por ID y luego, de forma segura, por nombre y dirección.
+- Los clientes ambiguos quedan sin sugerencia para evitar asignaciones incorrectas.
+- La pantalla informa cuántas sugerencias encontró antes de que el usuario decida aplicarlas y guardarlas.
 
 ## v0.7.0-dev
 
