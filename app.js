@@ -67,7 +67,12 @@ function currentSnapshot(){return {source:state.source,gestion:state.gestion}}
 function saveCurrentCache(){void writeDataCache({userKey:cacheUserKey(),savedAt:Date.now(),data:currentSnapshot()})}
 
 function toast(message, type="") {
-  const el = $("#toast"); el.textContent = message; el.className = `toast ${type}`.trim();
+  const el = $("#toast");
+  const focusedDialog=document.activeElement?.closest?.("dialog[open]");
+  const openDialogs=$$("dialog[open]");
+  const host=focusedDialog||openDialogs.at(-1)||document.body;
+  if(el.parentElement!==host)host.appendChild(el);
+  el.textContent = message; el.className = `toast ${type}`.trim();
   clearTimeout(toast.timer); toast.timer = setTimeout(()=>el.classList.add("hidden"),3500);
 }
 
@@ -530,6 +535,15 @@ function selectOperationClient(clientId){
   state.clientSearchResults=[];state.clientSearchIndex=0;$("#opClientResults").innerHTML="";$("#opClientResults").classList.add("hidden");
 }
 
+function selectOrderOccasionalClient(order){
+  const name=orderClientName(order),existing=occasionalProfiles().find(profile=>occasionalIdentityKey(profile.nombre)===occasionalIdentityKey(name));
+  if(existing){selectOperationClient(existing.id);return}
+  const id=newOccasionalId();state.occasionalClientId=id;state.operationPriceList="lista_1";
+  $("#opClient").value=id;$("#opClientSearch").value="";$("#opClientSearchBox").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#btnOccasionalClient").classList.add("hidden");
+  $("#opClientSelectedName").textContent=name;$("#opClientSelectedMeta").textContent="Cliente ocasional del pedido · conservará su cuenta corriente";$("#opClientSelected").classList.remove("hidden");
+  state.clientSearchResults=[];state.clientSearchIndex=0;$("#opClientResults").innerHTML="";$("#opClientResults").classList.add("hidden");
+}
+
 function startOperationClientSearch(){
   $("#opClient").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");
   state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";state.operationPriceList="lista_1";renderOperationClientResults();setTimeout(()=>$("#opClientSearch").focus(),30);
@@ -540,14 +554,21 @@ function startOccasionalClient(){
   state.clientSearchResults=[];state.clientSearchIndex=0;state.operationPriceList="lista_1";state.occasionalClientId=newOccasionalId();$("#opOccasionalOptions").innerHTML=occasionalProfiles().map(profile=>`<option value="${esc(profile.nombre)}"></option>`).join("");setTimeout(()=>$("#opOccasionalName").focus(),30);
 }
 
-function orderClientName(order){return String(order?.cliente||"").split("|")[0].trim()}
+function orderClientParts(order){return String(order?.cliente||"").split("|").map(part=>part.trim()).filter(Boolean)}
+function orderClientName(order){return orderClientParts(order)[0]||""}
+function clientOrderMetadata(client){return [client?.direccion,client?.ciudad,client?.localidad,client?.telefono].filter(Boolean).join(" ")}
+function clientMatchesOrderClues(client,order){
+  const clues=orderClientParts(order).slice(1).map(normalize).filter(Boolean),metadata=normalize(clientOrderMetadata(client));
+  return !!clues.length&&clues.every(clue=>clue.split(" ").filter(Boolean).every(token=>metadata.includes(token)));
+}
 function matchOrderClient(order){
   const id=String(order?.cliente_id||"").trim();
-  if(id){const byId=state.source.clientes.filter(client=>String(client.id)===id);if(byId.length===1)return {client:byId[0],reason:"id"};if(byId.length>1)return {client:null,reason:"duplicate_id"}}
+  if(id){const byId=state.source.clientes.filter(client=>String(client.id)===id);if(byId.length===1)return {client:byId[0],kind:"registered",reason:"id"};if(byId.length>1)return {client:null,reason:"duplicate_id"};if(/ocasional/i.test(id)&&orderClientName(order))return {client:null,kind:"occasional",reason:"occasional_id"};return {client:null,reason:"missing_id"}}
   const name=orderClientName(order);if(!name)return {client:null,reason:"missing"};
   const byName=state.source.clientes.filter(client=>normalize(client.nombre)===normalize(name));
-  if(byName.length===1)return {client:byName[0],reason:"name"};
-  return {client:null,reason:byName.length>1?"duplicate_name":"missing"};
+  if(byName.length===1)return {client:byName[0],kind:"registered",reason:"name"};
+  if(byName.length>1){const byClues=byName.filter(client=>clientMatchesOrderClues(client,order));if(byClues.length===1)return {client:byClues[0],kind:"registered",reason:"name_and_details"};return {client:null,reason:"duplicate_name"}}
+  return {client:null,kind:"occasional",reason:"occasional_name"};
 }
 
 function productPriceForOperation(product){const field=state.operationPriceList||"lista_1",selected=numeric(product?.[field]);return selected>0?selected:numeric(product?.lista_1)}
@@ -633,9 +654,9 @@ function openOperation(order=null) {
   $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");renderOperationClientResults();
-  let matchedClient=false;if(order){const match=matchOrderClient(order);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Elegí el correcto.",missing:"El cliente del pedido no coincide con una ficha activa. Elegilo antes de guardar."};toast(messages[match.reason]||messages.missing,"error")}}
+  let matchedClient=false,clientWarning="";if(order){const match=matchOrderClient(order);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else if(match.kind==="occasional"){selectOrderOccasionalClient(order);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Usá la dirección del pedido para elegir la ficha correcta.",missing_id:"El ID del cliente ya no coincide con una ficha activa. Elegí el cliente antes de guardar.",missing:"El pedido no tiene datos suficientes para identificar al cliente. Elegilo antes de guardar."};clientWarning=messages[match.reason]||messages.missing;const hint=$("#opClientSearchHint");hint.textContent=clientWarning;hint.className="client-search-hint error"}}
   $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se pregunta antes de agregar. Acepta *, x y cantidades con coma.";
-  renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();setTimeout(()=>$(matchedClient?"#opProductSearch":"#opClientSearch").focus(),80);
+  renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();if(clientWarning)toast(clientWarning,"error");setTimeout(()=>$(matchedClient?"#opProductSearch":"#opClientSearch").focus(),80);
 }
 function renderDraftItems() {
   $("#opItems").innerHTML=state.draftItems.length?state.draftItems.map((item,index)=>{const offer=currentOfferForProduct(item.id_producto);return `<div class="item-row" data-item-index="${index}"><div class="item-product-summary"><input data-item-product type="hidden" value="${esc(item.id_producto)}"><small>${esc(item.id_producto||"SIN CÓDIGO")}</small><strong>${esc(item.nombre||productById(item.id_producto)?.nombre||"Producto")}</strong>${offer?`<button type="button" class="mini-btn ${item.usa_oferta?"primary":""}" data-draft-offer="${index}">${item.usa_oferta?"🔥 Oferta aplicada":"🔥 Usar oferta "+money(offer.precio_oferta)}</button>`:""}</div><label>Cantidad<input data-item-qty type="number" min="0.001" step="0.001" inputmode="decimal" value="${esc(item.cantidad)}"></label><label>Precio<input data-item-price type="number" min="0" step="0.01" inputmode="decimal" value="${esc(item.precio)}"></label><div class="line-total">${money(Number(item.cantidad)*Number(item.precio))}</div><button class="remove-item" data-item-remove type="button" aria-label="Eliminar ${esc(item.nombre||"producto")}">×</button></div>`}).join(""):'<div class="empty compact-empty">Todavía no agregaste productos.</div>';
@@ -655,7 +676,7 @@ function refreshAfterMutation(){setSync("Guardado · actualizando…");void load
 async function saveOperation(event) {
   event.preventDefault(); syncDraftFromDom();
   const items=state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!items.length)return toast("Agregá al menos un producto.","error");
-  const selectedOccasional=occasionalProfileById($("#opClient").value),occasionalMode=!$("#opOccasionalFields").classList.contains("hidden")||!!selectedOccasional,occasionalName=selectedOccasional?.nombre||$("#opOccasionalName").value.trim();
+  const selectedClientId=$("#opClient").value,selectedOccasional=occasionalProfileById(selectedClientId),selectedOrderOccasional=isOccasionalId(selectedClientId),occasionalMode=!$("#opOccasionalFields").classList.contains("hidden")||!!selectedOccasional||selectedOrderOccasional,occasionalName=selectedOccasional?.nombre||(selectedOrderOccasional?$("#opClientSelectedName").textContent.trim():$("#opOccasionalName").value.trim());
   const cliente=occasionalMode?{id:selectedOccasional?.id||state.occasionalClientId,nombre:occasionalName}:clientById($("#opClient").value);
   if(occasionalMode&&!occasionalName)return toast("Escribí el nombre del cliente ocasional.","error");
   if(!cliente?.id||!cliente?.nombre)return toast("Buscá y elegí el cliente correcto.","error");

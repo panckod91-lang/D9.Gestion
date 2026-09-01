@@ -2,7 +2,13 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.6.3-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+Versión actual: `v0.6.4-dev`, conectada al nuevo despliegue **D9 Gestión DEV**.
+
+## v0.6.4-dev
+
+- Los pedidos históricos con clientes repetidos se vinculan usando también dirección, localidad o teléfono.
+- Los pedidos de clientes sin ficha activa se cargan automáticamente como ocasionales.
+- Las advertencias abiertas desde un diálogo ahora se muestran sobre ese diálogo y también quedan visibles junto al campo afectado.
 
 ## v0.6.3-dev
 
