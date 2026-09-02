@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=81">
+  <link rel="stylesheet" href="styles.css?v=82">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -53,6 +53,7 @@
           <button class="desktop-only" data-view="ofertas"><span>🔥</span>Productos en oferta</button>
           <button class="desktop-only" data-view="publicidad"><span>🖼️</span>Publicidad</button>
           <button class="desktop-only" data-view="clientes"><span>🏪</span>Clientes</button>
+          <button class="desktop-only" data-view="usuarios"><span>🪪</span>Usuarios</button>
           <button class="desktop-only" data-view="reportes"><span>📊</span>Reportes</button>
           <button class="desktop-only" data-view="config"><span>⚙</span>Configuración</button>
         </nav>
@@ -136,6 +137,14 @@
           </div>
           <p id="clientsSummary" class="list-summary"></p>
           <div id="clientsList" class="card-list empty">Sin clientes sincronizados.</div>
+        </section>
+
+        <section id="view-usuarios" class="view">
+          <div class="page-head"><div><h2>Usuarios y permisos</h2><p>Maestro único de la Sheet principal para Pedidos, Admin y Gestión.</p></div><button id="btnNewUser" class="btn primary" type="button">＋ Nuevo usuario</button></div>
+          <div class="admin-toolbar user-admin-notice"><span id="userAdminNotice" class="helper">Los cambios mantienen los roles actuales de D9 Pedidos y agregan permisos independientes para Gestión.</span></div>
+          <div class="filters user-filters"><input id="usersSearch" type="search" placeholder="Buscar ID, usuario, nombre o rol"><select id="usersStatus"><option value="active">Activos</option><option value="all">Todos</option><option value="inactive">Inactivos</option></select><select id="usersGestionRole"><option value="">Todos en Gestión</option><option value="super_admin">Super admin</option><option value="admin">Admin</option><option value="vendedor">Vendedor</option><option value="sin_acceso">Sin acceso</option></select></div>
+          <p id="usersSummary" class="list-summary"></p>
+          <div id="usersList" class="card-list empty">Sin usuarios sincronizados.</div>
         </section>
 
         <section id="view-ofertas" class="view">
@@ -279,10 +288,46 @@
       <button type="button" data-go="ofertas"><span>🔥</span><div><strong>Productos en oferta</strong><small>Precio temporal, sin tocar las listas</small></div><b>›</b></button>
       <button type="button" data-go="publicidad"><span>🖼️</span><div><strong>Publicidad</strong><small>Banners y carrusel de D9 Pedidos</small></div><b>›</b></button>
       <button type="button" data-go="clientes"><span>🏪</span><div><strong>Clientes</strong><small>Listas, datos comerciales y fiscales</small></div><b>›</b></button>
+      <button type="button" data-go="usuarios"><span>🪪</span><div><strong>Usuarios</strong><small>Accesos, roles y permisos de comprobantes</small></div><b>›</b></button>
       <button type="button" data-go="reportes"><span>📊</span><div><strong>Reportes</strong><small>Ventas, caja y vendedores</small></div><b>›</b></button>
       <button type="button" data-go="config"><span>⚙</span><div><strong>Configuración</strong><small>Datos propios de Gestión</small></div><b>›</b></button>
     </div>
     <p id="appVersionMore" class="version-more">—</p>
+  </dialog>
+
+  <dialog id="userDialog" class="dialog wide-dialog user-dialog">
+    <form id="userForm" method="dialog">
+      <div class="dialog-head"><div><small>MAESTRO CENTRAL</small><h2 id="userDialogTitle">Nuevo usuario</h2></div><button type="button" class="dialog-close" data-close="userDialog">×</button></div>
+      <section class="user-form-section">
+        <div class="section-head"><div><h3>Identidad y acceso</h3><p>El mismo registro que utilizan D9 Pedidos y D9 Admin.</p></div></div>
+        <div class="form-grid">
+          <label>ID<input id="userId" readonly placeholder="Se asigna automáticamente"></label>
+          <label>Estado<select id="userActive"><option value="si">Activo</option><option value="no">Inactivo</option></select></label>
+          <label>Usuario<input id="userLogin" maxlength="80" autocomplete="off" required></label>
+          <label>Nombre<input id="userName" maxlength="160" required></label>
+          <label class="wide">Clave<input id="userPassword" maxlength="120" type="password" autocomplete="new-password"><small id="userPasswordHelp">Obligatoria al crear. Al editar, dejala vacía para conservar la actual.</small></label>
+        </div>
+      </section>
+      <section class="subpanel user-role-panel">
+        <div class="section-head"><div><h3>D9 Pedidos</h3><p>Conserva la lógica que ya utilizan vendedores, mostrador y clientes.</p></div></div>
+        <div class="form-grid">
+          <label>Tipo de usuario<select id="userRole"><option value="vendedor">Vendedor</option><option value="mostrador">Venta mostrador</option><option value="cliente">Cliente</option><option value="admin">Admin</option></select></label>
+          <label id="userClientField">Cliente vinculado<select id="userClient"><option value="">Sin cliente vinculado</option></select></label>
+          <label id="userColor1Field">Color 1<input id="userColor1" type="color" value="#DDEEFF"></label>
+          <label id="userColor2Field">Color 2<input id="userColor2" type="color" value="#FFFFFF"></label>
+          <label>WhatsApp report<input id="userWhatsapp" maxlength="60" inputmode="tel"></label>
+        </div>
+      </section>
+      <section class="subpanel user-role-panel">
+        <div class="section-head"><div><h3>D9 Gestión</h3><p>Permisos independientes: no cambian cómo trabaja el usuario en Pedidos.</p></div></div>
+        <div class="form-grid">
+          <label>Perfil en Gestión<select id="userGestionRole"><option value="sin_acceso">Sin acceso</option><option value="vendedor">Vendedor</option><option value="admin">Admin</option><option value="super_admin">Super admin 😎</option></select></label>
+          <label>Emitir comprobantes<select id="userCanIssue"><option value="no">No</option><option value="si">Sí</option></select><small>Admin y Super admin siempre pueden emitir.</small></label>
+        </div>
+      </section>
+      <p id="userFormMessage" class="form-message hidden"></p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="userDialog">Cancelar</button><button id="btnSaveUser" class="btn primary big" type="submit">Guardar usuario</button></div>
+    </form>
   </dialog>
 
   <dialog id="productDialog" class="dialog">
@@ -431,7 +476,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=81"></script>
-  <script src="app.js?v=81"></script>
+  <script src="config.js?v=82"></script>
+  <script src="app.js?v=82"></script>
 </body>
 </html>

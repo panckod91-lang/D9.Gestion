@@ -30,8 +30,8 @@ const isAnnulled = value => normalize(value).includes("anulad");
 const state = {
   token: localStorage.getItem(STORAGE.token) || "",
   user: JSON.parse(localStorage.getItem(STORAGE.user) || "null"),
-  permissions: {source_admin:false,source_writes_enabled:false},
-  source: {clientes:[],clientes_admin:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],pedidos:[],ofertas:[],publicidad:[]},
+  permissions: {source_admin:false,gestion_admin:false,super_admin:false,can_issue_documents:false,source_writes_enabled:false},
+  source: {clientes:[],clientes_admin:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],usuarios_admin:[],pedidos:[],ofertas:[],publicidad:[]},
   gestion: {operaciones:[],items:[],recibos:[],pagos:[],cheques:[],movimientos:[],config:{}},
   currentView:"home",
   draftItems:[],
@@ -123,7 +123,7 @@ function showLogin(message="") {
 function showApp() {
   $("#loginScreen").classList.add("hidden"); $("#app").classList.remove("hidden");
   $("#sessionName").textContent=state.user?.nombre||state.user?.usuario||"Usuario";
-  $("#sessionRole").textContent=state.user?.rol_gestion||"Gestión";
+  $("#sessionRole").textContent=gestionRoleLabel(state.user?.rol_gestion);
   $("#welcomeName").textContent=(state.user?.nombre||"Ale").split(/\s+/)[0];
   const version=String(CONFIG.APP_VERSION||"versión sin identificar");
   if($("#appVersion"))$("#appVersion").textContent=version;
@@ -142,15 +142,15 @@ async function login(event) {
 
 function applyBootstrap(data) {
   if(data.user){state.user=data.user;localStorage.setItem(STORAGE.user,JSON.stringify(state.user));showApp()}
-  state.permissions={source_admin:!!data.permissions?.source_admin,source_writes_enabled:!!data.permissions?.source_writes_enabled};
+  state.permissions={source_admin:!!data.permissions?.source_admin,gestion_admin:!!data.permissions?.gestion_admin,super_admin:!!data.permissions?.super_admin,can_issue_documents:!!data.permissions?.can_issue_documents,source_writes_enabled:!!data.permissions?.source_writes_enabled};
   state.source={
-    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ofertas:data.source?.ofertas||[], publicidad:data.source?.publicidad||[]
+    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], usuarios_admin:data.source?.usuarios_admin||data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ofertas:data.source?.ofertas||[], publicidad:data.source?.publicidad||[]
   };
   state.gestion={
     operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], config:data.gestion?.config||{}
   };
   state.gestion.operaciones.forEach(operation=>operation.numero=canonicalOperationNumber(operation.numero,operation.tipo));
-  hydrateConfig();populateSelectors();hydrateMasterFilters();hydrateClientFilters();renderAll();
+  hydrateConfig();applyPermissionsUI();populateSelectors();hydrateMasterFilters();hydrateClientFilters();renderAll();
 }
 async function showCachedData() {
   const cached=await readDataCache();
@@ -173,11 +173,12 @@ async function loadAll(options={}) {
 }
 
 function showView(name) {
+  if(!isAdmin()&&ADMIN_VIEWS.has(name))return toast("Esta sección requiere permisos de administrador.","error");
   state.currentView=name;
   $$(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
   $$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
-  $("#btnMore").classList.toggle("active",["cheques","maestros","clientes","ofertas","publicidad","reportes","config"].includes(name));
-  const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios",clientes:"Clientes",ofertas:"Productos en oferta",publicidad:"Publicidad",reportes:"Reportes",config:"Configuración"};
+  $("#btnMore").classList.toggle("active",["cheques","maestros","clientes","usuarios","ofertas","publicidad","reportes","config"].includes(name));
+  const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios",clientes:"Clientes",usuarios:"Usuarios",ofertas:"Productos en oferta",publicidad:"Publicidad",reportes:"Reportes",config:"Configuración"};
   $("#viewTitle").textContent=labels[name]||"Gestión"; window.scrollTo({top:0,behavior:"smooth"});
   renderCurrentView();
 }
@@ -241,7 +242,7 @@ function renderHome() {
 }
 function orderSourceOperations(order){return [...state.gestion.operaciones].filter(operation=>String(operation.origen_pedido_id||"")===String(order?.pedido_id||"")).sort((a,b)=>String(b.created_at||b.fecha||"").localeCompare(String(a.created_at||a.fecha||"")))}
 function orderActionButtons(order,quick=false){
-  if(isAnnulled(order.estado))return "";
+  if(isAnnulled(order.estado)||!canIssueDocuments())return "";
   const used=orderSourceOperations(order),quickClass=quick?" order-create-quick":"";
   if(!used.length)return `<button type="button" class="mini-btn primary${quickClass}" data-order-import="${esc(order.pedido_id)}"><span>Crear comprobante</span><b>Usar</b></button>`;
   const latest=used[0],count=used.length,title=count===1?`Abre ${operationTypeLabel(latest.tipo)} ${formatOperationNumber(latest.numero)}`:`Abre el más reciente de ${count} comprobantes`;
@@ -289,7 +290,7 @@ function renderOperations() {
     return matchesSearch([o.numero,formatOperationNumber(o.numero),o.tipo,o.cliente,o.origen_pedido_id,o.vendedor,operationSellerInfo(o).nombre],q);
   });
   $("#operationsList").className="card-list"; $("#operationsList").innerHTML=rows.map(o=>`
-    <article class="data-card"><div><h3>${esc(operationTypeLabel(o.tipo))} ${esc(formatOperationNumber(o.numero||""))}</h3><p>${esc(o.cliente||"")} · ${formatDate(o.fecha)}</p><div class="meta">${o.origen_pedido_id?`<span class="pill">Pedido ${esc(o.origen_pedido_id)}</span>`:'<span class="pill">Carga manual</span>'}<span class="pill violet">👤 ${esc(operationSellerInfo(o).nombre)}</span><span class="pill ${numeric(o.saldo)>0?'amber':'green'}">${numeric(o.saldo)>0?`Saldo ${money(o.saldo)}`:"Pagado"}</span>${isAnnulled(o.estado)?'<span class="pill red">Anulado</span>':''}</div></div><div class="card-side"><strong>${money(o.total)}</strong><div class="row-actions"><button class="mini-btn" data-operation-detail="${esc(o.operacion_id)}">Ver</button><button class="mini-btn primary" data-operation-print="${esc(o.operacion_id)}">Imprimir</button>${!isAnnulled(o.estado)?`<button class="mini-btn danger" data-operation-annul="${esc(o.operacion_id)}">Anular</button>`:""}</div></div></article>`).join("")||'<div class="empty">Todavía no hay comprobantes.</div>';
+    <article class="data-card"><div><h3>${esc(operationTypeLabel(o.tipo))} ${esc(formatOperationNumber(o.numero||""))}</h3><p>${esc(o.cliente||"")} · ${formatDate(o.fecha)}</p><div class="meta">${o.origen_pedido_id?`<span class="pill">Pedido ${esc(o.origen_pedido_id)}</span>`:'<span class="pill">Carga manual</span>'}<span class="pill violet">👤 ${esc(operationSellerInfo(o).nombre)}</span><span class="pill ${numeric(o.saldo)>0?'amber':'green'}">${numeric(o.saldo)>0?`Saldo ${money(o.saldo)}`:"Pagado"}</span>${isAnnulled(o.estado)?'<span class="pill red">Anulado</span>':''}</div></div><div class="card-side"><strong>${money(o.total)}</strong><div class="row-actions"><button class="mini-btn" data-operation-detail="${esc(o.operacion_id)}">Ver</button><button class="mini-btn primary" data-operation-print="${esc(o.operacion_id)}">Imprimir</button>${isAdmin()&&!isAnnulled(o.estado)?`<button class="mini-btn danger" data-operation-annul="${esc(o.operacion_id)}">Anular</button>`:""}</div></div></article>`).join("")||'<div class="empty">Todavía no hay comprobantes.</div>';
 }
 
 function renderAccounts() {
@@ -319,9 +320,26 @@ function renderChecks() {
   $("#checksList").className="card-list"; $("#checksList").innerHTML=rows.map(c=>{const due=daysFromToday(c.fecha_vencimiento);return `<article class="data-card"><div><h3>${esc(c.banco||"Cheque")} · ${esc(c.numero||"Sin número")}</h3><p>${esc(c.cliente||"")} · Librador: ${esc(c.librador||"—")}</p><div class="meta"><span class="pill ${due<0?'red':due<=7?'amber':''}">Vence ${formatDate(c.fecha_vencimiento)}</span><span class="pill">${esc(c.estado||"EN_CARTERA")}</span></div></div><div class="card-side"><strong>${money(c.importe)}</strong><div class="row-actions">${!["COBRADO","RECHAZADO","ANULADO"].includes(String(c.estado||"").toUpperCase())?`<button class="mini-btn primary" data-check-status="${esc(c.cheque_id)}" data-status="COBRADO">Cobrado</button><button class="mini-btn danger" data-check-status="${esc(c.cheque_id)}" data-status="RECHAZADO">Rechazado</button>`:""}</div></div></article>`}).join("")||'<div class="empty">No hay cheques con ese filtro.</div>';
 }
 
-function isAdmin(){return normalize(state.user?.rol_gestion)==="administrador"}
+const ADMIN_VIEWS=new Set(["cuentas","recibos","cheques","maestros","clientes","usuarios","ofertas","publicidad","reportes","config"]);
+function gestionRole(value){
+  const role=normalize(value).replace(/\s+/g,"_");
+  if(["super_admin","superadmin"].includes(role))return "super_admin";
+  if(["admin","administrador"].includes(role))return "admin";
+  if(["vendedor","operador"].includes(role))return "vendedor";
+  return "sin_acceso";
+}
+function gestionRoleLabel(value){return ({super_admin:"Super admin",admin:"Administrador",vendedor:"Vendedor",sin_acceso:"Sin acceso"})[gestionRole(value)]||"Gestión"}
+function isAdmin(){return ["admin","super_admin"].includes(gestionRole(state.user?.rol_gestion))||state.permissions?.gestion_admin===true}
+function canIssueDocuments(){return isAdmin()||state.permissions?.can_issue_documents===true||activeValue(state.user?.permiso_comprobantes)}
 function sourceWritesEnabled(){return isAdmin()&&state.permissions?.source_writes_enabled===true}
-function sellers(){return [...state.source.usuarios].filter(user=>user.id&&user.nombre).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
+function applyPermissionsUI(){
+  document.body.classList.toggle("role-limited",!isAdmin());
+  $$("[data-view]").forEach(button=>{if(ADMIN_VIEWS.has(button.dataset.view))button.classList.toggle("permission-hidden",!isAdmin())});
+  $$("[data-go]").forEach(button=>{if(ADMIN_VIEWS.has(button.dataset.go))button.classList.toggle("permission-hidden",!isAdmin())});
+  $("#btnMore")?.classList.toggle("permission-hidden",!isAdmin());
+  ["#btnNewOperation","#btnNewOperation2"].forEach(selector=>$(selector)?.classList.toggle("permission-hidden",!canIssueDocuments()));
+}
+function sellers(){return [...state.source.usuarios].filter(user=>user.id&&user.nombre&&normalize(user.rol)==="vendedor").sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
 function sellerById(id){return sellers().find(user=>String(user.id)===String(id))}
 function sellerLabel(id,fallback=""){return sellerById(id)?.nombre||fallback||"Sin vendedor"}
 function sellerOptions(value="",allLabel=""){
@@ -650,7 +668,62 @@ async function deleteClient(){
   finally{button.disabled=!isAdmin();button.textContent=originalText}
 }
 
-function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,clientes:renderClients,ofertas:renderOffers,publicidad:renderPublicidad,reportes:renderSalesReport}[state.currentView]||(()=>{}))(); }
+function adminUsers(){return state.source.usuarios_admin?.length?state.source.usuarios_admin:state.source.usuarios}
+function sourceRoleLabel(role){return ({vendedor:"Vendedor",mostrador:"Venta mostrador",cliente:"Cliente",admin:"Admin"})[normalize(role)]||String(role||"Usuario")}
+function renderUsers(){
+  if(!isAdmin())return;
+  const query=$("#usersSearch").value,status=$("#usersStatus").value,role=$("#usersGestionRole").value;
+  const rows=adminUsers().filter(user=>{
+    const active=activeValue(user.activo),gestion=gestionRole(user.rol_gestion);
+    if(status==="active"&&!active)return false;if(status==="inactive"&&active)return false;if(role&&gestion!==role)return false;
+    return matchesSearch([user.id,user.usuario,user.nombre,user.rol,gestionRoleLabel(gestion),user.wasap_report],query);
+  }).sort((a,b)=>String(a.nombre||a.usuario).localeCompare(String(b.nombre||b.usuario),"es"));
+  $("#btnNewUser").disabled=!sourceWritesEnabled();
+  $("#userAdminNotice").textContent=sourceWritesEnabled()?"Escritura habilitada: los cambios impactan en la hoja usuarios central y quedan auditados.":"Modo seguro: podés revisar usuarios, pero el guardado está bloqueado hasta activar SOURCE_WRITES_ENABLED.";
+  $("#usersSummary").textContent=`${rows.length} mostrados · ${adminUsers().length} usuarios en total`;
+  $("#usersList").className="card-list";
+  $("#usersList").innerHTML=rows.map(user=>{
+    const gestion=gestionRole(user.rol_gestion),canIssue=activeValue(user.permiso_comprobantes)||["admin","super_admin"].includes(gestion);
+    return `<article class="data-card user-master-card ${activeValue(user.activo)?"":"inactive"}"><div><h3>${esc(user.nombre||user.usuario)}</h3><p>@${esc(user.usuario||"—")} · ID ${esc(user.id)}</p><div class="meta"><span class="pill">${esc(sourceRoleLabel(user.rol))}</span><span class="pill violet">${esc(gestionRoleLabel(gestion))}</span>${canIssue?'<span class="pill green">Puede emitir comprobantes</span>':""}<span class="pill ${activeValue(user.activo)?"green":"red"}">${activeValue(user.activo)?"Activo":"Inactivo"}</span></div></div><div class="card-side"><button class="mini-btn primary" data-edit-user="${esc(user.id)}">Editar</button></div></article>`;
+  }).join("")||'<div class="empty">No hay usuarios con esos filtros.</div>';
+}
+function fillUserClientOptions(value=""){
+  const select=$("#userClient");select.innerHTML='<option value="">Sin cliente vinculado</option>'+adminClients().filter(client=>activeValue(client.activo)).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es")).map(client=>`<option value="${esc(client.id)}">${esc(client.nombre||client.id)}</option>`).join("");
+  select.value=value||"";
+}
+function updateUserRoleFields(){
+  const sourceRole=normalize($("#userRole").value),gestion=gestionRole($("#userGestionRole").value),adminRole=["admin","super_admin"].includes(gestion);
+  $("#userClientField").classList.toggle("hidden",sourceRole!=="cliente");
+  $("#userColor1Field").classList.toggle("hidden",sourceRole!=="vendedor");
+  $("#userColor2Field").classList.toggle("hidden",sourceRole!=="vendedor");
+  if(adminRole)$("#userCanIssue").value="si";
+  $("#userCanIssue").disabled=adminRole;
+}
+function openUserEditor(userId=""){
+  if(!isAdmin())return toast("Esta sesión no puede modificar usuarios.","error");
+  const user=userId?adminUsers().find(item=>String(item.id)===String(userId)):null,isNew=!userId;
+  if(!isNew&&!user)return toast("No encontré ese usuario.","error");
+  $("#userForm").reset();$("#userForm").dataset.mode=isNew?"new":"edit";$("#userDialogTitle").textContent=isNew?"Nuevo usuario":"Editar usuario";
+  $("#userId").value=user?.id||"";$("#userLogin").value=user?.usuario||"";$("#userName").value=user?.nombre||"";$("#userPassword").value="";
+  $("#userPassword").required=isNew;$("#userPasswordHelp").textContent=isNew?"Ingresá una clave inicial.":"Dejala vacía para conservar la clave actual.";
+  $("#userRole").value=["vendedor","mostrador","cliente","admin"].includes(normalize(user?.rol))?normalize(user.rol):"vendedor";
+  $("#userWhatsapp").value=user?.wasap_report||"";$("#userColor1").value=/^#[0-9a-f]{6}$/i.test(user?.color_1||"")?user.color_1:"#DDEEFF";$("#userColor2").value=/^#[0-9a-f]{6}$/i.test(user?.color_2||"")?user.color_2:"#FFFFFF";
+  $("#userActive").value=activeValue(user?.activo??"si")?"si":"no";$("#userGestionRole").value=gestionRole(user?.rol_gestion);$("#userCanIssue").value=activeValue(user?.permiso_comprobantes)?"si":"no";
+  fillUserClientOptions(user?.cliente_id||"");updateUserRoleFields();$("#btnSaveUser").disabled=!sourceWritesEnabled();$("#userFormMessage").classList.add("hidden");$("#userDialog").showModal();setTimeout(()=>$(isNew?"#userLogin":"#userName").focus(),40);
+}
+async function saveUser(event){
+  event.preventDefault();if(!sourceWritesEnabled())return toast("La escritura sobre la Sheet principal está bloqueada por seguridad.","error");
+  const isNew=$("#userForm").dataset.mode==="new",usuario={id:$("#userId").value.trim(),usuario:$("#userLogin").value.trim(),nombre:$("#userName").value.trim(),clave:$("#userPassword").value,rol:$("#userRole").value,wasap_report:$("#userWhatsapp").value.trim(),cliente_id:$("#userRole").value==="cliente"?$("#userClient").value:"",color_1:$("#userColor1").value,color_2:$("#userColor2").value,activo:$("#userActive").value,rol_gestion:$("#userGestionRole").value,permiso_comprobantes:$("#userCanIssue").value};
+  const button=$("#btnSaveUser"),message=$("#userFormMessage");button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");
+  try{
+    const result=await apiPost("source_save_user",{usuario,nuevo:isNew}),saved=result.usuario;
+    if(saved){upsertBy(state.source.usuarios_admin,"id",saved);state.source.usuarios=state.source.usuarios_admin.filter(item=>activeValue(item.activo))}
+    $("#userDialog").close();renderUsers();toast(result.message||"Usuario guardado");await refreshAfterMutation();
+  }catch(err){message.textContent=err.message;message.className="form-message error";message.classList.remove("hidden")}
+  finally{button.disabled=!sourceWritesEnabled();button.textContent="Guardar usuario"}
+}
+
+function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,clientes:renderClients,usuarios:renderUsers,ofertas:renderOffers,publicidad:renderPublicidad,reportes:renderSalesReport}[state.currentView]||(()=>{}))(); }
 function renderAll() { renderHome(); if(state.currentView!=="home")renderCurrentView(); }
 
 function populateSelectors() {
@@ -815,10 +888,12 @@ function confirmProductQuantity(event){
 }
 
 function openOperation(order=null) {
+  if(!canIssueDocuments())return toast("Tu usuario puede consultar, pero no emitir comprobantes.","error");
   state.currentOrder=order;state.operationPriceList="lista_1"; state.draftItems=(order?.items||[]).map(i=>({id_producto:i.id_producto||i.id, nombre:i.nombre||i.detalle, cantidad:numeric(i.cantidad||i.total), precio:numeric(i.precio)}));
   state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";state.autoPaidAmount=false;state.productSearchResults=[];state.productSearchIndex=0;
   $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");
-  const orderSeller=sellerById(order?.vendedor_id)||sellers().find(user=>normalize(user.nombre)===normalize(order?.vendedor));$("#opSeller").innerHTML=sellerOptions(orderSeller?.id||"");$("#opSeller").value=orderSeller?.id||"";
+  const orderSeller=sellerById(order?.vendedor_id)||sellers().find(user=>normalize(user.nombre)===normalize(order?.vendedor)),sessionSeller=sellerById(state.user?.id),selectedSeller=isAdmin()?orderSeller:sessionSeller;
+  $("#opSeller").innerHTML=sellerOptions(selectedSeller?.id||"");$("#opSeller").value=selectedSeller?.id||"";$("#opSeller").disabled=!isAdmin();
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");renderOperationClientResults();
   let matchedClient=false,clientWarning="";if(order){const match=matchOrderClient(order);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else if(match.kind==="occasional"){selectOrderOccasionalClient(order);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Usá la dirección del pedido para elegir la ficha correcta.",missing_id:"El ID del cliente ya no coincide con una ficha activa. Elegí el cliente antes de guardar.",missing:"El pedido no tiene datos suficientes para identificar al cliente. Elegilo antes de guardar."};clientWarning=messages[match.reason]||messages.missing;const hint=$("#opClientSearchHint");hint.textContent=clientWarning;hint.className="client-search-hint error"}}
@@ -839,9 +914,9 @@ function stageCreatedOperation(data,payload,total,paid){
   state.gestion.items.push(...payload.items.map((item,index)=>({item_id:`LOCAL-IT-${index}`,operacion_id:data.operacion_id,orden:index+1,producto_id:item.id_producto,producto:item.nombre,cantidad:item.cantidad,precio_unitario:item.precio,descuento_pct:0,subtotal:numeric(item.cantidad)*numeric(item.precio)})));
   saveCurrentCache();
 }
-function refreshAfterMutation(){setSync("Guardado · actualizando…");void loadAll({silent:true})}
+function refreshAfterMutation(){setSync("Guardado · actualizando…");return loadAll({silent:true})}
 async function saveOperation(event) {
-  event.preventDefault(); syncDraftFromDom();
+  event.preventDefault();if(!canIssueDocuments())return toast("Tu usuario no tiene permiso para emitir comprobantes.","error");syncDraftFromDom();
   const items=state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!items.length)return toast("Agregá al menos un producto.","error");
   const selectedClientId=$("#opClient").value,selectedOccasional=occasionalProfileById(selectedClientId),selectedOrderOccasional=isOccasionalId(selectedClientId),occasionalMode=!$("#opOccasionalFields").classList.contains("hidden")||!!selectedOccasional||selectedOrderOccasional,occasionalName=selectedOccasional?.nombre||(selectedOrderOccasional?$("#opClientSelectedName").textContent.trim():$("#opOccasionalName").value.trim());
   const cliente=occasionalMode?{id:selectedOccasional?.id||state.occasionalClientId,nombre:occasionalName}:clientById($("#opClient").value);
@@ -877,6 +952,7 @@ function startReceiptClientSearch(){
   $("#receiptClient").value="";$("#receiptClientSearch").value="";$("#receiptClientSearch").classList.remove("hidden");$("#receiptClientSelected").classList.add("hidden");$("#receiptClientResults").classList.remove("hidden");updateReceiptOperations();renderReceiptClientPicker();setReceiptMessage();setTimeout(()=>$("#receiptClientSearch").focus(),40);
 }
 function openReceipt(clientId="") {
+  if(!isAdmin())return toast("Sólo administración puede ingresar recibos.","error");
   $("#receiptForm").reset();$("#receiptClient").value="";$("#receiptDate").value=todayISO();$("#receiptAmount").readOnly=false;$("#receiptMixedFields").classList.add("hidden");$("#receiptCheckFields").classList.add("hidden");setReceiptMessage();
   if(clientId)selectReceiptClient(clientId);else startReceiptClientSearch();
   $("#receiptDialog").showModal();if(!clientId)setTimeout(()=>$("#receiptClientSearch").focus(),80);
@@ -900,7 +976,7 @@ function stageCreatedReceipt(data,payload,payments,amount,operation){
   saveCurrentCache();
 }
 async function saveReceipt(event){
-  event.preventDefault();const btn=$("#btnSaveReceipt");setReceiptMessage();
+  event.preventDefault();if(!isAdmin())return toast("Sólo administración puede ingresar recibos.","error");const btn=$("#btnSaveReceipt");setReceiptMessage();
   try{
     const account=accountByReference($("#receiptClient").value);if(!account)throw new Error("Elegí un cliente con saldo pendiente.");
     if(!$("#receiptDate").value)throw new Error("Elegí la fecha del recibo.");
@@ -1012,12 +1088,12 @@ function formatDate(value){const s=String(value||"");if(/^\d{4}-\d{2}-\d{2}/.tes
 function hydrateConfig(){const f=$("#configForm"),c=state.gestion.config;[...f.elements].forEach(el=>{if(el.name&&c[el.name]!==undefined)el.value=c[el.name]})}
 async function saveConfig(event){event.preventDefault();const config=Object.fromEntries(new FormData(event.currentTarget));try{await apiPost("update_config",{config});toast("Configuración guardada");await loadAll()}catch(err){toast(err.message,"error")}}
 
-async function annulOperation(id){if(!confirm("¿Anular este comprobante? No se borrará: se generarán los movimientos de reversión."))return;try{await apiPost("anular_operacion",{operacion_id:id});toast("Comprobante anulado");await loadAll()}catch(err){toast(err.message,"error")}}
-async function updateCheck(id,status){if(!confirm(`¿Marcar el cheque como ${status.toLowerCase()}?`))return;try{await apiPost("update_cheque_status",{cheque_id:id,estado:status});toast("Cheque actualizado");await loadAll()}catch(err){toast(err.message,"error")}}
+async function annulOperation(id){if(!isAdmin())return toast("Sólo administración puede anular comprobantes.","error");if(!confirm("¿Anular este comprobante? No se borrará: se generarán los movimientos de reversión."))return;try{await apiPost("anular_operacion",{operacion_id:id});toast("Comprobante anulado");await loadAll()}catch(err){toast(err.message,"error")}}
+async function updateCheck(id,status){if(!isAdmin())return toast("Sólo administración puede cambiar cheques.","error");if(!confirm(`¿Marcar el cheque como ${status.toLowerCase()}?`))return;try{await apiPost("update_cheque_status",{cheque_id:id,estado:status});toast("Cheque actualizado");await loadAll()}catch(err){toast(err.message,"error")}}
 
 function bindEvents(){
   $("#loginForm").addEventListener("submit",login);$("#btnLogout").addEventListener("click",()=>{clearSession();showLogin()});$("#btnRefresh").addEventListener("click",loadAll);$("#homeLogo").addEventListener("click",()=>showView("home"));
-  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go)}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const editProduct=e.target.closest("[data-edit-product]");if(editProduct)openProductEditor(editProduct.dataset.editProduct);const editClient=e.target.closest("[data-edit-client]");if(editClient)openClientEditor(editClient.dataset.editClient);const clientAccount=e.target.closest("[data-client-account]");if(clientAccount)openClientAccount(clientAccount.dataset.clientAccount);const editOffer=e.target.closest("[data-edit-offer]");if(editOffer)openOfferEditor(editOffer.dataset.editOffer);const draftOffer=e.target.closest("[data-draft-offer]");if(draftOffer)toggleDraftOffer(Number(draftOffer.dataset.draftOffer));const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op){if($("#detailDialog")?.open)$("#detailDialog").close();showOperationDetail(op.dataset.operationDetail)}const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
+  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view)});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go)}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const editProduct=e.target.closest("[data-edit-product]");if(editProduct)openProductEditor(editProduct.dataset.editProduct);const editClient=e.target.closest("[data-edit-client]");if(editClient)openClientEditor(editClient.dataset.editClient);const editUser=e.target.closest("[data-edit-user]");if(editUser)openUserEditor(editUser.dataset.editUser);const clientAccount=e.target.closest("[data-client-account]");if(clientAccount)openClientAccount(clientAccount.dataset.clientAccount);const editOffer=e.target.closest("[data-edit-offer]");if(editOffer)openOfferEditor(editOffer.dataset.editOffer);const draftOffer=e.target.closest("[data-draft-offer]");if(draftOffer)toggleDraftOffer(Number(draftOffer.dataset.draftOffer));const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op){if($("#detailDialog")?.open)$("#detailDialog").close();showOperationDetail(op.dataset.operationDetail)}const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
   document.addEventListener("click",e=>{const editAd=e.target.closest("[data-edit-ad]");if(editAd)openAdEditor(editAd.dataset.editAd)});
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});
@@ -1029,6 +1105,7 @@ function bindEvents(){
   [["#ordersSearch",renderOrders],["#ordersSeller",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsType",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters],["#clientsSearch",renderClients],["#clientsPriceList",renderClients],["#clientsSeller",renderClients],["#clientsStatus",renderClients],["#clientsFiscal",renderClients]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
   $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());$("#btnNewProduct").addEventListener("click",()=>openProductEditor());$("#btnBulkPrices").addEventListener("click",openBulkPrices);$("#productForm").addEventListener("submit",saveProduct);$("#bulkPriceForm").addEventListener("submit",applyBulkPrices);$("#btnRefreshBulkPreview").addEventListener("click",calculateBulkPreview);$("#mastersPriceList").addEventListener("change",renderMasters);$("#btnNewClient").addEventListener("click",()=>openClientEditor());$("#clientForm").addEventListener("submit",saveClient);$("#btnDeleteClient").addEventListener("click",deleteClient);$("#btnAssignSellers").addEventListener("click",openSellerAssignment);$("#sellerAssignmentSearch").addEventListener("input",renderSellerAssignments);$("#sellerAssignmentMissing").addEventListener("change",renderSellerAssignments);$("#btnApplySellerSuggestions").addEventListener("click",applySellerSuggestions);$("#btnSaveSellerAssignments").addEventListener("click",saveSellerAssignments);$("#sellerAssignmentList").addEventListener("change",event=>{const select=event.target.closest("[data-seller-assignment]");if(select){state.sellerAssignments[select.dataset.sellerAssignment]=select.value;renderSellerAssignments()}});$("#btnImportClients").addEventListener("click",openClientImportPicker);$("#clientImportFile").addEventListener("change",readClientImportPdf);$("#clientImportReviewList").addEventListener("change",changeClientImportDecision);$("#btnApplyClientImport").addEventListener("click",applyClientImport);$$("#clientFiscalDetails input, #clientFiscalDetails select").forEach(input=>input.addEventListener("input",updateClientFiscalStatus));$("#btnNewOffer").addEventListener("click",()=>openOfferEditor());$("#offerForm").addEventListener("submit",saveOffer);$("#offerProduct").addEventListener("input",updateOfferProductInfo);$("#btnDeleteOffer").addEventListener("click",deleteOffer);$("#offersSearch").addEventListener("input",renderOffers);$("#offersStatus").addEventListener("change",renderOffers);
   $("#btnNewAd").addEventListener("click",()=>openAdEditor());$("#adForm").addEventListener("submit",saveAd);$("#adMode").addEventListener("change",()=>{updateAdMode();updateAdPreview()});$$('#adForm input, #adForm select').forEach(input=>input.addEventListener("input",updateAdPreview));$("#adsSearch").addEventListener("input",renderPublicidad);$("#adsStatus").addEventListener("change",renderPublicidad);
+  $("#btnNewUser").addEventListener("click",()=>openUserEditor());$("#userForm").addEventListener("submit",saveUser);$("#userRole").addEventListener("change",updateUserRoleFields);$("#userGestionRole").addEventListener("change",updateUserRoleFields);[["#usersSearch","input"],["#usersStatus","change"],["#usersGestionRole","change"]].forEach(([selector,eventName])=>$(selector).addEventListener(eventName,renderUsers));
   ["#ordersFrom","#ordersTo"].forEach(selector=>$(selector).addEventListener("change",loadOrdersHistory));$("#ordersList").addEventListener("click",event=>{if(event.target.closest(".order-quick-actions"))event.preventDefault()});$("#btnReloadOrders").addEventListener("click",loadOrdersHistory);$("#btnOrdersPdf").addEventListener("click",printOrdersReport);$("#btnOrdersWhatsApp").addEventListener("click",shareOrdersWhatsApp);
   ["#reportSalesFrom","#reportSalesTo","#reportSalesSeller"].forEach(selector=>$(selector).addEventListener("change",renderSalesReport));$("#btnPrintSalesReport").addEventListener("click",printSalesReport);
 }

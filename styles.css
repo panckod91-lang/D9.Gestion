@@ -73,3 +73,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:lin
 /* v0.8.1 · resumen de importación parcial */
 .import-summary{grid-template-columns:repeat(5,minmax(120px,1fr))}.import-summary .current strong{color:#087eaf}
 @media(max-width:760px){.import-summary{grid-template-columns:1fr 1fr}}
+
+/* v0.8.2 · usuarios centrales y permisos de Gestión */
+.permission-hidden{display:none!important}.user-filters{grid-template-columns:minmax(250px,1.5fr) repeat(2,minmax(160px,.65fr))}.user-admin-notice{justify-content:flex-end}.user-admin-notice .helper{margin-left:0}.user-master-card.inactive{opacity:.68;background:#f8fafb}.user-dialog{width:min(900px,calc(100vw - 24px))}.user-form-section{margin-bottom:14px}.user-role-panel{margin-top:14px}.user-role-panel .section-head{margin-bottom:12px}.user-role-panel label small,.user-form-section label small{font-size:10px;color:var(--muted)}
+@media(max-width:760px){.user-filters{grid-template-columns:1fr}.user-dialog{padding:18px}.role-limited .nav{grid-template-columns:repeat(3,1fr)}}

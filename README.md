@@ -2,7 +2,27 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.8.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.8.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.8.2-prod
+
+- Incorpora el módulo **Usuarios** para administrar el maestro único de la hoja `usuarios` de la Sheet principal.
+- Mantiene intacto el campo `rol` que ya consumen D9 Pedidos y D9 Admin: vendedor, venta mostrador, cliente o admin.
+- Agrega al final de esa misma hoja `rol_gestion` y `permiso_comprobantes`, sin duplicar usuarios ni cambiar IDs existentes.
+- Define perfiles de Gestión: sin acceso, vendedor, admin y super admin. Admin y super admin tienen las mismas funciones operativas.
+- Permite que un vendedor autorizado emita comprobantes, forzando el comprobante a su propio `vendedor_id` y limitando la consulta a sus pedidos y comprobantes.
+- Reserva recibos, cuentas corrientes, cheques, maestros, usuarios, reportes, configuración y anulaciones para administración.
+- Protege al administrador contra la desactivación o pérdida accidental de su propio acceso.
+- Las claves nunca se envían al navegador; al editar, una clave vacía conserva la existente.
+- No requiere cambios en D9 Pedidos, D9 Admin ni D9 Script PROD: todos conservan compatibilidad por encabezados y preservan las columnas nuevas.
+
+## v0.8.1-prod
+
+- Permite aplicar inmediatamente las coincidencias seguras aunque queden casos dudosos pendientes.
+- Incluye en el mismo lote los casos que Ale ya haya resuelto y deja intactos los restantes.
+- Distingue entre **omitidos** y **pendientes** tanto en la confirmación como en la auditoría.
+- Al volver a cargar el mismo PDF, separa las fichas que ya están actualizadas y evita ofrecerlas nuevamente como cambios.
+- El botón informa exactamente qué aplicará: seguros y decisiones revisadas.
 
 ## v0.8.0-prod
 
