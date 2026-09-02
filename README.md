@@ -2,15 +2,18 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.7.3-prod`, preparada para el despliegue único de **D9 Gestión**.
+Versión actual: `v0.8.0-prod`, conectada al despliegue propio de **D9 Gestión**.
 
-## v0.7.3-prod
+## v0.8.0-prod
 
-- Agrega un tachito por cliente en “Asignación rápida de vendedores”.
-- Reutiliza la eliminación protegida: los pedidos históricos no bloquean, pero los comprobantes, recibos o movimientos financieros sí.
-- Al eliminar un cliente desde el modal conserva las demás asignaciones modificadas que todavía no fueron guardadas.
-- El cambio es solamente de frontend y mantiene sin cambios D9 Pedidos, D9 Admin, D9 Script PROD y el backend de Gestión `0.7.1`.
-- D9 Gestión no posee un entorno DEV separado: esta versión debe publicarse directamente después de completar las verificaciones locales.
+- Agrega un asistente para importar el listado fiscal `CLIENTES.pdf` del sistema anterior.
+- Lee el PDF localmente y no escribe nada durante el análisis.
+- Completa automáticamente sólo clientes cuyo ID y nombre normalizado coinciden y cuyos datos fiscales no presentan conflictos.
+- Deriva a revisión los códigos con nombres distintos, CUIT compartidos, datos fiscales diferentes y clientes que todavía no existen en D9.
+- Permite a Ale completar una ficha elegida, crear un cliente nuevo cuando el ID está libre u omitir el registro.
+- Exige resolver todos los casos dudosos antes de la confirmación final.
+- El lote valida concurrencia, conserva intactos los datos comerciales y queda registrado en la auditoría de Gestión.
+- Incorpora PDF.js dentro del proyecto: el análisis no depende de servicios externos ni modifica D9 Pedidos, D9 Admin, Worker o Script PROD.
 
 ## v0.7.2-dev
 
