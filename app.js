@@ -504,7 +504,7 @@ async function saveSellerAssignments(){
 }
 
 let clientImportModulePromise=null;
-function loadClientImportModule(){return clientImportModulePromise||(clientImportModulePromise=import("./client-import.js?v=80"))}
+function loadClientImportModule(){return clientImportModulePromise||(clientImportModulePromise=import("./client-import.js?v=81"))}
 function openClientImportPicker(){
   if(!isAdmin())return toast("Esta sesión no puede importar clientes.","error");
   const input=$("#clientImportFile");input.value="";input.click();
@@ -527,7 +527,7 @@ function renderClientImport(){
   const current=state.clientImport;if(!current)return;const {analysis}=current,decisions=state.clientImportDecisions;
   $("#clientImportSource").textContent=`${current.fileName} · ${current.pages} páginas · ${analysis.total} clientes detectados`;
   const newCandidates=analysis.review.filter(item=>item.canCreate).length;
-  $("#clientImportSummary").innerHTML=`<div><small>Leídos del PDF</small><strong>${analysis.total}</strong></div><div class="safe"><small>Seguros</small><strong>${analysis.safe.length}</strong></div><div class="review"><small>Para revisar</small><strong>${analysis.review.length}</strong></div><div><small>Posibles nuevos</small><strong>${newCandidates}</strong></div>`;
+  $("#clientImportSummary").innerHTML=`<div><small>Leídos del PDF</small><strong>${analysis.total}</strong></div><div class="safe"><small>Seguros</small><strong>${analysis.safe.length}</strong></div><div class="current"><small>Ya actualizados</small><strong>${analysis.already?.length||0}</strong></div><div class="review"><small>Para revisar</small><strong>${analysis.review.length}</strong></div><div><small>Posibles nuevos</small><strong>${newCandidates}</strong></div>`;
   $("#clientImportSafeTitle").textContent=`${analysis.safe.length} coincidencias seguras preparadas`;
   $("#clientImportSafeList").innerHTML=analysis.safe.map(item=>`<div class="import-safe-row"><strong>${esc(item.source.code)} · ${esc(item.source.name)}</strong><small>${esc(item.source.tax_id?`CUIT/DNI ${item.source.tax_id} · ${clientImportVatLabel(item.source.condition)}`:clientImportVatLabel(item.source.condition))}</small></div>`).join("")||'<div class="empty">No hay coincidencias automáticas.</div>';
   $("#clientImportTargetOptions").innerHTML=clientImportTargetOptions();
@@ -535,9 +535,9 @@ function renderClientImport(){
     const decision=decisions[item.key]||{action:"",targetId:""},target=adminClients().find(client=>String(client.id)===String(decision.targetId)),resolved=decision.action==="omit"||decision.action==="create"||(decision.action==="update"&&target),cardClass=decision.action==="omit"?"omitted":resolved?"resolved":"";
     return `<article class="import-review-card ${cardClass}" data-import-key="${esc(item.key)}"><div class="import-review-head"><div><strong>${esc(item.source.code)} · ${esc(item.source.name)}</strong><small>${esc(item.source.address_full||"Sin domicilio")} · ${esc(item.source.tax_id||"Sin documento")} · ${esc(clientImportVatLabel(item.source.condition))}</small></div><span class="import-review-reason">${esc(item.reason)}</span></div><div class="import-compare"><div><small>Sistema anterior</small><strong>${esc(item.source.name)}</strong><span>${esc(item.source.fiscal_address||"Sin domicilio")} · ${esc(item.source.fiscal_city||"Sin localidad")}</span></div><div><small>Ficha D9 seleccionada</small><strong>${esc(target?`${target.id} · ${target.nombre}`:"Todavía ninguna")}</strong><span>${esc(target?[target.direccion,target.ciudad].filter(Boolean).join(" · ")||"Sin domicilio comercial":"Elegí una ficha o decidí crear/omitir")}</span></div></div><div class="import-review-controls"><label>Decisión<select data-import-action="${esc(item.key)}"><option value="" ${!decision.action?"selected":""}>Pendiente de Ale</option><option value="update" ${decision.action==="update"?"selected":""}>Completar ficha D9 elegida</option>${item.canCreate?`<option value="create" ${decision.action==="create"?"selected":""}>Crear cliente nuevo con ID ${esc(item.source.code)}</option>`:""}<option value="omit" ${decision.action==="omit"?"selected":""}>Omitir este registro</option></select></label><label>Cliente de D9<input data-import-target="${esc(item.key)}" list="clientImportTargetOptions" value="${esc(target?`${target.id} · ${target.nombre}`:"")}" placeholder="Buscar por ID o nombre" ${decision.action==="create"||decision.action==="omit"?"disabled":""}></label></div></article>`;
   }).join("")||'<div class="empty">No hay casos dudosos: el lote puede aplicarse directamente.</div>';
-  const resolved=analysis.review.filter(item=>{const decision=decisions[item.key]||{};return decision.action==="omit"||decision.action==="create"||(decision.action==="update"&&decision.targetId)}).length,pending=analysis.review.length-resolved;
+  const resolved=analysis.review.filter(item=>{const decision=decisions[item.key]||{};return decision.action==="omit"||decision.action==="create"||(decision.action==="update"&&decision.targetId)}).length,pending=analysis.review.length-resolved,reviewedChanges=analysis.review.filter(item=>{const decision=decisions[item.key]||{};return decision.action==="create"||(decision.action==="update"&&decision.targetId)}).length,planned=analysis.safe.length+reviewedChanges;
   $("#clientImportReviewProgress").textContent=pending?`${pending} pendientes`:`${resolved} resueltos`;$("#clientImportReviewProgress").className=`pill ${pending?"amber":"green"}`;
-  const button=$("#btnApplyClientImport");button.disabled=!!pending||!sourceWritesEnabled()||(!analysis.safe.length&&!resolved);button.title=!sourceWritesEnabled()?"La escritura sobre la Sheet central está bloqueada.":pending?"Ale debe resolver todos los casos dudosos.":"";
+  const button=$("#btnApplyClientImport"),safeText=analysis.safe.length?`${analysis.safe.length} seguros`:"",reviewedText=reviewedChanges?`${reviewedChanges} revisados`:"";button.textContent=planned?`Aplicar ${[safeText,reviewedText].filter(Boolean).join(" + ")}`:"Sin cambios para aplicar";button.disabled=!planned||!sourceWritesEnabled();button.title=!sourceWritesEnabled()?"La escritura sobre la Sheet central está bloqueada.":!planned?"No hay cambios seleccionados.":pending?`${pending} casos quedarán pendientes para después.`:"";
 }
 function changeClientImportDecision(event){
   const action=event.target.closest("[data-import-action]"),target=event.target.closest("[data-import-target]");if(!action&&!target)return;
@@ -547,15 +547,17 @@ function changeClientImportDecision(event){
   state.clientImportDecisions[key]=decision;renderClientImport();
 }
 async function applyClientImport(){
-  const current=state.clientImport;if(!current)return;const {analysis,module}=current,updates=analysis.safe.map(item=>module.importUpdatePayload(item,{target:item.target})),creates=[];let omitted=0;
-  for(const item of analysis.review){const decision=state.clientImportDecisions[item.key]||{};if(decision.action==="omit"){omitted++;continue}if(decision.action==="create"){creates.push(module.importCreatePayload(item));continue}if(decision.action==="update"){const target=adminClients().find(client=>String(client.id)===String(decision.targetId));updates.push(module.importUpdatePayload(item,{target}));continue}return toast("Todavía hay casos pendientes de decisión.","error")}
+  const current=state.clientImport;if(!current)return;const {analysis,module}=current,updates=analysis.safe.map(item=>module.importUpdatePayload(item,{target:item.target})),creates=[];let omitted=0,pending=0;
+  for(const item of analysis.review){const decision=state.clientImportDecisions[item.key]||{};if(decision.action==="omit"){omitted++;continue}if(decision.action==="create"){creates.push(module.importCreatePayload(item));continue}if(decision.action==="update"){const target=adminClients().find(client=>String(client.id)===String(decision.targetId));if(target){updates.push(module.importUpdatePayload(item,{target}));continue}}pending++}
+  if(!updates.length&&!creates.length)return toast("No hay cambios seleccionados para aplicar.","error");
   const targetIds=updates.map(item=>item.cliente_id),duplicates=targetIds.filter((id,index)=>targetIds.indexOf(id)!==index);if(duplicates.length)return toast(`La ficha D9 ${duplicates[0]} fue elegida para más de un registro del PDF. Revisala.`,"error");
-  if(!confirm(`¿Aplicar la importación?\n\n${updates.length} fichas se completarán\n${creates.length} clientes se crearán\n${omitted} registros se omitirán\n\nNo se modificarán vendedores, listas, nombres comerciales ni historiales.`))return;
+  const reviewedChanges=updates.length-analysis.safe.length+creates.length;
+  if(!confirm(`¿Aplicar esta parte de la importación?\n\n${analysis.safe.length} coincidencias seguras\n${reviewedChanges} decisiones revisadas\n${pending} casos quedarán pendientes\n${omitted} registros se omitirán\n\nPodés volver a cargar el mismo PDF más adelante. No se modificarán vendedores, listas, nombres comerciales ni historiales.`))return;
   const button=$("#btnApplyClientImport"),message=$("#clientImportMessage");button.disabled=true;button.textContent="Aplicando…";message.textContent="Validando todo el lote antes de escribir…";message.className="form-message working";
   try{
-    const result=await apiPost("source_import_clients",{importacion:{archivo:{nombre:current.fileName,sha256:current.hash,paginas:current.pages,filas:analysis.total},actualizaciones:updates,altas:creates,omitidos:omitted}});
+    const result=await apiPost("source_import_clients",{importacion:{archivo:{nombre:current.fileName,sha256:current.hash,paginas:current.pages,filas:analysis.total},actualizaciones:updates,altas:creates,omitidos:omitted,pendientes:pending}});
     message.textContent=result.message||"Importación terminada.";message.className="form-message success";await loadAll({silent:true});setTimeout(()=>$("#clientImportDialog").close(),350);toast(result.message||"Clientes importados");
-  }catch(err){message.textContent=err.message;message.className="form-message error";button.disabled=false;button.textContent="Aplicar importación"}
+  }catch(err){message.textContent=err.message;message.className="form-message error";renderClientImport()}
 }
 
 function offerIsCurrent(offer={},date=todayISO()){if(!activeValue(offer.activo))return false;const from=String(offer.fecha_desde||"").slice(0,10),to=String(offer.fecha_hasta||"").slice(0,10);return (!from||from<=date)&&(!to||to>=date)}

@@ -124,6 +124,10 @@ function fiscalConflicts(current,incoming){
   return FISCAL_FIELDS.filter(field=>current[field]&&incoming[field]&&normalizeImportText(current[field])!==normalizeImportText(incoming[field]));
 }
 
+function sameFiscalProfile(current,incoming){
+  return FISCAL_FIELDS.every(field=>normalizeImportText(current[field])===normalizeImportText(incoming[field]));
+}
+
 function targetItem(row,target,reason,extra={}){
   return {key:`${row.page}-${row.code}`,source:row,target:target||null,reason,...extra};
 }
@@ -138,7 +142,7 @@ export function analyzeClientImport(pdfRows,clients){
   const taxGroups=new Map();
   pdfRows.forEach(row=>{if(row.tax_id){const group=taxGroups.get(row.tax_id)||[];group.push(row);taxGroups.set(row.tax_id,group)}});
   const repeatedTaxIds=new Set([...taxGroups].filter(([,group])=>group.length>1).map(([taxId])=>taxId));
-  const safe=[],review=[];
+  const safe=[],already=[],review=[];
   pdfRows.forEach(row=>{
     const idMatches=byId.get(row.code)||[],nameMatches=byName.get(normalizeImportText(row.name))||[];
     if(idMatches.length!==1){
@@ -152,12 +156,15 @@ export function analyzeClientImport(pdfRows,clients){
     if(row.problems.length){review.push(targetItem(row,target,row.problems.join(" · "),{canCreate:false}));return;}
     const conflicts=fiscalConflicts(fiscalSnapshot(target),row.fiscal);
     if(conflicts.length){review.push(targetItem(row,target,`D9 ya tiene datos fiscales diferentes: ${conflicts.join(", ")}`,{canCreate:false}));return;}
+    if(sameFiscalProfile(fiscalSnapshot(target),row.fiscal)){
+      already.push(targetItem(row,target,"Los datos fiscales ya están actualizados",{canCreate:false}));return;
+    }
     if(row.tax_id&&repeatedTaxIds.has(row.tax_id)){
       review.push(targetItem(row,target,"El CUIT aparece en más de un cliente del PDF",{canCreate:false,sharedTaxId:true}));return;
     }
     safe.push(targetItem(row,target,"Código y nombre coinciden",{canCreate:false}));
   });
-  return {safe,review,total:pdfRows.length,repeatedTaxIds:[...repeatedTaxIds]};
+  return {safe,already,review,total:pdfRows.length,repeatedTaxIds:[...repeatedTaxIds]};
 }
 
 export function importUpdatePayload(item,decision){
