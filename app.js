@@ -90,10 +90,9 @@ function toast(message, type="") {
 }
 
 function apiReady() { return /^https:\/\/script\.google\.com\/macros\/s\//.test(API_URL); }
-function apiUrl(action, params={}) {
+function apiUrl(action) {
   const url = new URL(API_URL);
   url.searchParams.set("action", action);
-  Object.entries(params).forEach(([k,v])=>{ if(v!==undefined && v!==null && v!=="") url.searchParams.set(k,v); });
   return url.toString();
 }
 async function parseResponse(res) {
@@ -106,17 +105,13 @@ async function parseResponse(res) {
   }
   return data;
 }
-async function apiGet(action, params={}) {
-  if (!apiReady()) throw new Error("Falta configurar la URL de D9 Gestión");
-  const res = await fetch(apiUrl(action,{...params,token:state.token,ts:Date.now()}),{cache:"no-store",redirect:"follow"});
-  return parseResponse(res);
-}
 async function apiPost(action, payload={}) {
   if (!apiReady()) throw new Error("Falta configurar la URL de D9 Gestión");
   const body = JSON.stringify({action,token:state.token,...payload});
   const res = await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
   return parseResponse(res);
 }
+function apiRead(action,params={}){return apiPost(action,params)}
 
 function setSync(text, error=false) { const el=$("#syncBadge"); el.textContent=text; el.classList.toggle("error",error); }
 function saveSession(data) {
@@ -179,10 +174,10 @@ async function pollOrders(){
   if(ordersPollBusy||!canPollOrders())return;
   ordersPollBusy=true;
   try{
-    const check=await apiGet("pedidos_revision"),revision=String(check.revision||"");
+    const check=await apiRead("pedidos_revision"),revision=String(check.revision||"");
     if(!revision||revision===state.ordersRevision)return;
     const previousIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||"")));
-    const data=await apiGet("pedidos");
+    const data=await apiRead("pedidos");
     state.source.pedidos=data.pedidos||[];
     state.ordersRevision=String(data.revision||revision);
     const newOrders=state.source.pedidos.filter(order=>!previousIds.has(String(order.pedido_id||"")));
@@ -204,7 +199,7 @@ async function showCachedData() {
 async function loadAll(options={}) {
   if(!options.silent)setSync("Sincronizando…");
   try {
-    const data=await apiGet("bootstrap");
+    const data=await apiRead("bootstrap");
     applyBootstrap(data);state.cacheLoaded=true;saveCurrentCache();
     setSync(`Actualizado ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`);
   } catch(err) {
@@ -228,7 +223,7 @@ function showView(name) {
 async function loadOrdersHistory(){
   const from=$("#ordersFrom").value,to=$("#ordersTo").value;if(from&&to&&from>to)return toast("La fecha desde no puede ser posterior a la fecha hasta.","error");
   const button=$("#btnReloadOrders");button.disabled=true;button.textContent="Cargando…";setSync(from||to?"Buscando pedidos del período…":"Cargando pedidos recientes…");
-  try{const data=await apiGet("pedidos",{from,to});state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);if(!state.ordersRangeActive&&data.revision)state.ordersRevision=String(data.revision);populateSelectors();renderHome();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
+  try{const data=await apiRead("pedidos",{from,to});state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);if(!state.ordersRangeActive&&data.revision)state.ordersRevision=String(data.revision);populateSelectors();renderHome();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
   catch(err){toast(err.message||"No se pudo cargar el historial de pedidos.","error");setSync("No se pudo actualizar Pedidos",true)}
   finally{button.disabled=false;button.textContent="↻ Actualizar"}
 }

@@ -2,7 +2,16 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.11.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.11.3-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.11.3-prod
+
+- Mueve `bootstrap`, `pedidos` y `pedidos_revision` de GET a POST para que el token de sesión viaje dentro del cuerpo y no en la URL.
+- Mantiene las lecturas autenticadas fuera de `LockService`; el polling automático no bloquea comprobantes, recibos ni otras escrituras.
+- Deja GET únicamente para consultar el estado público y la versión del Script.
+- Agrega `id` y `scope` al manifest conservando `./`, la misma identidad efectiva que ya aportaba `start_url`.
+- Conserva el polling liviano cada 15 segundos incorporado en v0.11.2.
+- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni ninguna Sheet.
 
 ## v0.11.2-prod
 
