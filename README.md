@@ -2,7 +2,14 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.11.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.11.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.11.1-prod
+
+- Recupera el vendedor de comprobantes históricos mediante la coincidencia exacta de `origen_pedido_id` con el pedido original.
+- Corrige los filtros de Ventas y Comisiones: los remitos antiguos de Mati vuelven a aparecer aunque todavía no tuvieran `vendedor_id` fotografiado.
+- Mantiene como pendientes únicamente los comprobantes manuales o realmente ambiguos; no asigna vendedores por cliente ni por parecido de nombre.
+- Incluye el backend duplicado como `apps-script/Code.txt` para copiarlo con mayor comodidad a Google Apps Script.
 
 ## v0.11.0-prod
 

@@ -482,12 +482,13 @@ function renderClients(){
 }
 
 function operationSellerInfo(operation){
-  const commissionStatus=operationCommissionStatus(operation);if(commissionStatus==="NO_APLICA")return {id:"__NO_COMMISSION__",nombre:"Venta directa / sin comisión"};if(commissionStatus==="PENDIENTE")return {id:"",nombre:"Pendiente de definir"};
+  const commissionStatus=operationCommissionStatus(operation);if(commissionStatus==="NO_APLICA")return {id:"__NO_COMMISSION__",nombre:"Venta directa / sin comisión"};
   if(operation.vendedor_id||operation.vendedor)return {id:String(operation.vendedor_id||""),nombre:sellerLabel(operation.vendedor_id,operation.vendedor)};
+  const reference=state.gestion.operaciones.find(item=>String(item.operacion_id)===String(operation.referencia_operacion_id));if(reference){const inherited=operationSellerInfo(reference);if(inherited.id)return inherited}
   const order=state.source.pedidos.find(item=>String(item.pedido_id)===String(operation.origen_pedido_id));if(order?.vendedor_id||order?.vendedor)return {id:String(order.vendedor_id||""),nombre:sellerLabel(order.vendedor_id,order.vendedor)};
-  const client=adminClients().find(item=>String(item.id)===String(operation.cliente_id));return {id:String(client?.vendedor_id||""),nombre:sellerLabel(client?.vendedor_id,client?.vendedor)};
+  return {id:"",nombre:"Pendiente de definir"};
 }
-function operationCommissionStatus(operation){const explicit=String(operation?.comision_estado||"").toUpperCase();return explicit||(operation?.vendedor_id?"APLICA":"PENDIENTE")}
+function operationCommissionStatus(operation){const explicit=String(operation?.comision_estado||"").toUpperCase();if(explicit)return explicit;if(operation?.vendedor_id)return "APLICA";const reference=state.gestion.operaciones.find(item=>String(item.operacion_id)===String(operation?.referencia_operacion_id));if(reference)return operationCommissionStatus(reference);const order=state.source.pedidos.find(item=>String(item.pedido_id)===String(operation?.origen_pedido_id));return order?.vendedor_id?"APLICA":"PENDIENTE"}
 function initialPaymentsForOperation(operation){
   const receipts=state.gestion.recibos.filter(receipt=>String(receipt.operacion_id)===String(operation.operacion_id)&&!isAnnulled(receipt.estado)&&normalize(receipt.observaciones).startsWith("pago inicial"));
   const stored=receipts.flatMap(receipt=>receiptPayments(receipt.recibo_id)).filter(payment=>!isAnnulled(payment.estado));return stored.length?stored:(operation._initial_payments||[]);
@@ -565,7 +566,7 @@ async function saveSellerAssignments(){
 }
 
 let clientImportModulePromise=null;
-function loadClientImportModule(){return clientImportModulePromise||(clientImportModulePromise=import("./client-import.js?v=110"))}
+function loadClientImportModule(){return clientImportModulePromise||(clientImportModulePromise=import("./client-import.js?v=111"))}
 function openClientImportPicker(){
   if(!isAdmin())return toast("Esta sesión no puede importar clientes.","error");
   const input=$("#clientImportFile");input.value="";input.click();
