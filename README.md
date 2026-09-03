@@ -2,7 +2,19 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.9.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.10.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.10.0-prod
+
+- Completa **Reportes → Comisiones** con período libre, filtro por vendedor, resumen general y detalle auditable de cada comprobante.
+- Calcula únicamente remitos internos vigentes menos notas de crédito internas; los pedidos, proformas y notas de venta no generan comisión.
+- Incorpora notas de crédito vinculadas obligatoriamente a un remito vigente, con cantidades máximas, precios, cliente, vendedor y porcentaje heredados de la venta original.
+- Permite cerrar un período para congelar sus importes en `comisiones_cierres` y `comisiones_detalle`.
+- Bloquea cierres superpuestos, cierres con porcentajes faltantes y cierres realizados mientras hay un vendedor filtrado.
+- Impide crear o anular comprobantes comisionables dentro de períodos cerrados; una corrección posterior debe ingresarse como NC en un período abierto.
+- Guarda en cada ítem nuevo la marca y la fotografía de regla, porcentaje, base e importe de comisión, preparando futuras excepciones por marca.
+- Actualiza Ventas por vendedor e Inicio para mostrar las notas de crédito con signo negativo.
+- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni la Sheet principal.
 
 ## v0.9.0-prod
 

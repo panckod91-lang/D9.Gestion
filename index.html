@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=90">
+  <link rel="stylesheet" href="styles.css?v=100">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -85,8 +85,8 @@
         </section>
 
         <section id="view-operaciones" class="view">
-          <div class="page-head"><div><h2>Comprobantes</h2><p>Remitos, facturas pro forma y notas de venta creados en Gestión.</p></div><button id="btnNewOperation2" class="btn primary">＋ Nuevo</button></div>
-          <div class="filters"><input id="operationsSearch" placeholder="Buscar número, cliente u origen"><select id="operationsType"><option value="">Todos los tipos</option><option value="REMITO">Remitos · R</option><option value="PROFORMA">Facturas pro forma · FPF</option><option value="NOTA_VENTA">Notas de venta · NDV</option></select><select id="operationsStatus"><option value="active">Vigentes</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
+          <div class="page-head"><div><h2>Comprobantes</h2><p>Remitos, notas de crédito, facturas pro forma y notas de venta creados en Gestión.</p></div><button id="btnNewOperation2" class="btn primary">＋ Nuevo</button></div>
+          <div class="filters"><input id="operationsSearch" placeholder="Buscar número, cliente u origen"><select id="operationsType"><option value="">Todos los tipos</option><option value="REMITO">Remitos · R</option><option value="NOTA_CREDITO">Notas de crédito · NC</option><option value="PROFORMA">Facturas pro forma · FPF</option><option value="NOTA_VENTA">Notas de venta · NDV</option></select><select id="operationsStatus"><option value="active">Vigentes</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
           <div id="operationsList" class="card-list empty">Todavía no hay comprobantes.</div>
         </section>
 
@@ -171,7 +171,16 @@
             <div id="salesReportSummary" class="report-summary"></div>
             <div id="salesReportList" class="report-table-wrap empty">No hay ventas para el período.</div>
           </section>
-          <section class="panel future-reports"><div class="panel-head"><div><h3>Próximos reportes</h3><p>Esta pestaña queda preparada para crecer sin recargar Inicio.</p></div></div><div class="report-coming-grid"><span>💵 Cobranzas</span><span>📒 Resúmenes de cuenta</span><span>🎯 Comisiones</span><span>📈 Estadísticas</span></div></section>
+          <section class="panel report-panel commission-report-panel">
+            <div class="panel-head"><div><h3>Comisiones por vendedor</h3><p>Remitos vigentes menos notas de crédito. Los pedidos no intervienen.</p></div><div class="row-actions"><button id="btnPrintCommissionReport" class="btn secondary" type="button">📄 Imprimir / PDF</button><button id="btnCloseCommissions" class="btn primary" type="button">🔒 Cerrar período</button></div></div>
+            <div class="filters report-filters"><label>Desde<input id="reportCommissionFrom" type="date"></label><label>Hasta<input id="reportCommissionTo" type="date"></label><label>Vendedor<select id="reportCommissionSeller"><option value="">Todos los vendedores</option></select></label></div>
+            <div id="commissionReportStatus" class="commission-report-status"></div>
+            <div id="commissionReportSummary" class="report-summary commission-summary"></div>
+            <div id="commissionReportList" class="commission-report-list empty">No hay movimientos comisionables para el período.</div>
+            <div class="commission-closures-head"><h4>Cierres anteriores</h4><small>Los períodos cerrados quedan congelados y auditados.</small></div>
+            <div id="commissionClosures" class="commission-closures empty">Todavía no hay cierres.</div>
+          </section>
+          <section class="panel future-reports"><div class="panel-head"><div><h3>Próximos reportes</h3><p>Esta pestaña queda preparada para crecer sin recargar Inicio.</p></div></div><div class="report-coming-grid"><span>💵 Cobranzas</span><span>📒 Resúmenes de cuenta</span><span>📈 Estadísticas</span></div></section>
         </section>
 
         <section id="view-config" class="view">
@@ -193,8 +202,10 @@
     <form id="operationForm" method="dialog">
       <div class="dialog-head"><div><small>NUEVO COMPROBANTE</small><h2 id="operationDialogTitle">Crear desde cero</h2></div><button type="button" class="dialog-close" data-close="operationDialog">×</button></div>
       <input id="opSourceOrder" type="hidden">
+      <input id="opReferenceOperation" type="hidden">
+      <div id="creditNoteBanner" class="credit-note-banner hidden"></div>
       <div class="form-grid">
-        <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option></select></label>
+        <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option><option value="NOTA_CREDITO" disabled>Nota de crédito</option></select></label>
         <label>Fecha<input id="opDate" type="date" required></label>
         <label class="wide">Vendedor<select id="opSeller"><option value="">Sin vendedor asignado</option></select><small>Se guarda dentro del comprobante para conservar el historial de comisiones.</small></label>
         <div class="wide operation-client-field">
@@ -226,11 +237,11 @@
         </div>
         <div id="opItems" class="item-editor"></div>
       </section>
-      <div class="form-grid">
+      <div class="form-grid" id="operationCommercialFields">
         <label>Descuento general %<input id="opDiscount" type="number" min="0" max="100" step="0.01" value="0"></label>
-        <label>Forma de pago inicial<select id="opPaymentMethod"><option value="CUENTA_CORRIENTE">Cuenta corriente</option><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="CHEQUE">Cheque</option><option value="MIXTO">Mixto</option></select></label>
-        <label>Importe pagado ahora<input id="opPaidAmount" type="number" min="0" step="0.01" value="0"></label>
-        <label>Referencia<input id="opPaymentReference" placeholder="Transferencia, recibo, etc."></label>
+        <label data-sale-payment>Forma de pago inicial<select id="opPaymentMethod"><option value="CUENTA_CORRIENTE">Cuenta corriente</option><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="CHEQUE">Cheque</option><option value="MIXTO">Mixto</option></select></label>
+        <label data-sale-payment>Importe pagado ahora<input id="opPaidAmount" type="number" min="0" step="0.01" value="0"></label>
+        <label data-sale-payment>Referencia<input id="opPaymentReference" placeholder="Transferencia, recibo, etc."></label>
         <label class="wide">Observaciones<textarea id="opNotes" placeholder="Condiciones, entrega, aclaraciones…"></textarea></label>
       </div>
       <section id="opMixedFields" class="subpanel hidden"><h3>Detalle del pago mixto</h3><div class="form-grid"><label>Efectivo<input id="opMixedCash" type="number" min="0" step="0.01" value="0"></label><label>Transferencia<input id="opMixedTransfer" type="number" min="0" step="0.01" value="0"></label><label>Cheque<input id="opMixedCheck" type="number" min="0" step="0.01" value="0"></label><label>Referencia transferencia<input id="opMixedReference"></label></div></section>
@@ -493,7 +504,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=90"></script>
-  <script src="app.js?v=90"></script>
+  <script src="config.js?v=100"></script>
+  <script src="app.js?v=100"></script>
 </body>
 </html>
