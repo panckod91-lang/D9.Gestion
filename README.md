@@ -2,7 +2,19 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.10.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.11.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.11.0-prod
+
+- Distingue comprobantes con comisión, ventas directas de Ale sin comisión y registros históricos pendientes de definir.
+- Permite a administración resolver cada remito pendiente asignando su vendedor real o marcándolo explícitamente como venta directa sin comisión; la decisión queda auditada y se propaga a sus notas de crédito.
+- Las ventas directas sin vendedor participan del control del período con base visible y comisión cero, sin exigir una regla ficticia.
+- Agrega bonificaciones financieras vinculadas a un remito: reducen la cuenta corriente y descuentan la comisión original de forma proporcional, sin simular devolución de productos.
+- Agrega créditos generales a un cliente, exclusivos de administración, que reducen la cuenta corriente y quedan fuera del reporte de comisiones.
+- Reorganiza Reportes como un menú de módulos. Ventas y Comisiones abren por separado, solicitan período y vendedor antes de mostrar resultados, y dejan visibles los reportes futuros aún pendientes.
+- Conserva las notas de crédito por devolución total o parcial de productos de `v0.10.0-prod`.
+- Agrega al final de `operaciones` las columnas `credito_tipo`, `credito_concepto`, `comision_estado` y `comision_motivo`; se crean automáticamente y no reordenan datos existentes.
+- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni la Sheet principal.
 
 ## v0.10.0-prod
 

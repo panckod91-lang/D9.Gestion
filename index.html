@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=100">
+  <link rel="stylesheet" href="styles.css?v=110">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -165,22 +165,27 @@
 
         <section id="view-reportes" class="view">
           <div class="page-head"><div><h2>Reportes</h2><p>Información operativa para caja, vendedores y administración.</p></div></div>
-          <section class="panel report-panel">
-            <div class="panel-head"><div><h3>Ventas por vendedor</h3><p>Comprobantes vigentes y forma de pago inicial.</p></div><button id="btnPrintSalesReport" class="btn secondary" type="button">📄 Imprimir / PDF</button></div>
-            <div class="filters report-filters"><label>Desde<input id="reportSalesFrom" type="date"></label><label>Hasta<input id="reportSalesTo" type="date"></label><label>Vendedor<select id="reportSalesSeller"><option value="">Todos los vendedores</option></select></label></div>
-            <div id="salesReportSummary" class="report-summary"></div>
-            <div id="salesReportList" class="report-table-wrap empty">No hay ventas para el período.</div>
+          <div id="reportsHub" class="report-hub">
+            <button type="button" class="report-choice active" data-report-open="sales"><span>📊</span><div><strong>Ventas por vendedor</strong><small>Comprobantes, pagos y totales por período.</small></div><b>›</b></button>
+            <button type="button" class="report-choice active" data-report-open="commissions"><span>💰</span><div><strong>Comisiones</strong><small>Remitos, créditos, vendedores y cierres.</small></div><b>›</b></button>
+            <button type="button" class="report-choice" disabled><span>💵</span><div><strong>Cobranzas</strong><small>Próximamente</small></div></button>
+            <button type="button" class="report-choice" disabled><span>📒</span><div><strong>Cuentas corrientes</strong><small>Próximamente</small></div></button>
+            <button type="button" class="report-choice" disabled><span>🏦</span><div><strong>Cheques</strong><small>Próximamente</small></div></button>
+            <button type="button" class="report-choice" disabled><span>📈</span><div><strong>Estadísticas</strong><small>Próximamente</small></div></button>
+          </div>
+          <section id="salesReportView" class="panel report-panel report-detail hidden">
+            <button class="report-back" type="button" data-report-back>‹ Todos los reportes</button>
+            <div class="panel-head"><div><h3>Ventas por vendedor</h3><p>Elegí los filtros y después consultá el reporte.</p></div></div>
+            <div class="filters report-filters"><label>Desde<input id="reportSalesFrom" type="date"></label><label>Hasta<input id="reportSalesTo" type="date"></label><label>Vendedor<select id="reportSalesSeller"><option value="">Todos los vendedores</option></select></label><button id="btnRunSalesReport" class="btn primary" type="button">Consultar reporte</button></div>
+            <div id="salesReportResults" class="hidden"><div class="report-result-actions"><button id="btnPrintSalesReport" class="btn secondary" type="button">📄 Imprimir / PDF</button></div><div id="salesReportSummary" class="report-summary"></div><div id="salesReportList" class="report-table-wrap empty">No hay ventas para el período.</div></div>
           </section>
-          <section class="panel report-panel commission-report-panel">
-            <div class="panel-head"><div><h3>Comisiones por vendedor</h3><p>Remitos vigentes menos notas de crédito. Los pedidos no intervienen.</p></div><div class="row-actions"><button id="btnPrintCommissionReport" class="btn secondary" type="button">📄 Imprimir / PDF</button><button id="btnCloseCommissions" class="btn primary" type="button">🔒 Cerrar período</button></div></div>
-            <div class="filters report-filters"><label>Desde<input id="reportCommissionFrom" type="date"></label><label>Hasta<input id="reportCommissionTo" type="date"></label><label>Vendedor<select id="reportCommissionSeller"><option value="">Todos los vendedores</option></select></label></div>
-            <div id="commissionReportStatus" class="commission-report-status"></div>
-            <div id="commissionReportSummary" class="report-summary commission-summary"></div>
-            <div id="commissionReportList" class="commission-report-list empty">No hay movimientos comisionables para el período.</div>
-            <div class="commission-closures-head"><h4>Cierres anteriores</h4><small>Los períodos cerrados quedan congelados y auditados.</small></div>
-            <div id="commissionClosures" class="commission-closures empty">Todavía no hay cierres.</div>
+          <section id="commissionReportView" class="panel report-panel commission-report-panel report-detail hidden">
+            <button class="report-back" type="button" data-report-back>‹ Todos los reportes</button>
+            <div class="panel-head"><div><h3>Comisiones por vendedor</h3><p>Elegí período y vendedor antes de desplegar el detalle.</p></div></div>
+            <div class="filters report-filters"><label>Desde<input id="reportCommissionFrom" type="date"></label><label>Hasta<input id="reportCommissionTo" type="date"></label><label>Vendedor<select id="reportCommissionSeller"><option value="">Todos los vendedores</option></select></label><button id="btnRunCommissionReport" class="btn primary" type="button">Consultar reporte</button></div>
+            <div class="commission-closures-head"><h4>Cierres anteriores</h4><small>Seleccioná uno para abrirlo.</small></div><div id="commissionClosures" class="commission-closures empty">Todavía no hay cierres.</div>
+            <div id="commissionReportResults" class="hidden"><div class="report-result-actions"><button id="btnPrintCommissionReport" class="btn secondary" type="button">📄 Imprimir / PDF</button><button id="btnCloseCommissions" class="btn primary" type="button">🔒 Cerrar período</button></div><div id="commissionReportStatus" class="commission-report-status"></div><div id="commissionReportSummary" class="report-summary commission-summary"></div><div id="commissionReportList" class="commission-report-list empty">No hay movimientos comisionables para el período.</div></div>
           </section>
-          <section class="panel future-reports"><div class="panel-head"><div><h3>Próximos reportes</h3><p>Esta pestaña queda preparada para crecer sin recargar Inicio.</p></div></div><div class="report-coming-grid"><span>💵 Cobranzas</span><span>📒 Resúmenes de cuenta</span><span>📈 Estadísticas</span></div></section>
         </section>
 
         <section id="view-config" class="view">
@@ -205,9 +210,9 @@
       <input id="opReferenceOperation" type="hidden">
       <div id="creditNoteBanner" class="credit-note-banner hidden"></div>
       <div class="form-grid">
-        <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option><option value="NOTA_CREDITO" disabled>Nota de crédito</option></select></label>
+        <label>Tipo<select id="opType"><option value="REMITO">Remito</option><option value="PROFORMA">Factura pro forma</option><option value="NOTA_VENTA">Nota de venta</option><option value="NOTA_CREDITO">NC / ajuste de crédito</option></select></label>
         <label>Fecha<input id="opDate" type="date" required></label>
-        <label class="wide">Vendedor<select id="opSeller"><option value="">Sin vendedor asignado</option></select><small>Se guarda dentro del comprobante para conservar el historial de comisiones.</small></label>
+        <label id="opSellerField" class="wide">Vendedor<select id="opSeller"><option value="">Sin vendedor asignado</option></select><small>Se guarda dentro del comprobante para conservar el historial de comisiones.</small></label>
         <div class="wide operation-client-field">
           <span class="field-label">Cliente</span>
           <input id="opClient" type="hidden">
@@ -227,7 +232,8 @@
           <button id="btnOccasionalClient" type="button" class="btn secondary occasional-client-button">Cliente ocasional</button>
         </div>
       </div>
-      <section class="editor-section">
+      <section id="financialCreditFields" class="subpanel financial-credit-fields hidden"><h3 id="financialCreditTitle">Ajuste de crédito</h3><p id="financialCreditHelp">Reduce la cuenta corriente sin devolver productos.</p><div class="form-grid"><label>Importe<input id="financialCreditAmount" type="number" min="0.01" step="0.01"></label><label class="wide">Motivo<input id="financialCreditConcept" maxlength="160" placeholder="Ej: bonificación comercial acordada"></label></div></section>
+      <section id="operationProductsSection" class="editor-section">
         <div class="section-head"><div><h3>Productos</h3><p>Buscá por código o descripción. La cantidad puede modificarse después.</p></div></div>
         <div class="product-quick-add">
           <label for="opProductSearch">Carga rápida de productos</label>
@@ -355,6 +361,17 @@
       <p class="commission-future">La estructura ya admite excepciones por marca. En esta primera etapa se carga únicamente la regla GENERAL.</p>
       <p id="commissionFormMessage" class="form-message hidden"></p>
       <div class="dialog-actions"><button type="button" class="btn secondary" data-close="commissionDialog">Cancelar</button><button id="btnSaveCommission" class="btn primary big" type="submit">Guardar comisión</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="commissionResolveDialog" class="dialog commission-dialog">
+    <form id="commissionResolveForm" method="dialog">
+      <div class="dialog-head"><div><small>COMISIÓN DEL COMPROBANTE</small><h2 id="commissionResolveTitle">Resolver remito</h2></div><button type="button" class="dialog-close" data-close="commissionResolveDialog">×</button></div>
+      <input id="commissionResolveOperationId" type="hidden">
+      <div class="commission-info"><strong>Elegí qué ocurrió realmente</strong><span>No se inventará un vendedor: la decisión queda guardada y auditada.</span></div>
+      <div class="form-grid"><label class="wide">Tratamiento<select id="commissionResolveMode"><option value="">Elegir…</option><option value="ASIGNAR">Asignar vendedor y calcular comisión</option><option value="NO_APLICA">Venta directa de Ale · sin comisión</option></select></label><label id="commissionResolveSellerField" class="wide hidden">Vendedor<select id="commissionResolveSeller"></select></label><label class="wide">Motivo / aclaración<input id="commissionResolveReason" maxlength="160" placeholder="Opcional"></label></div>
+      <p id="commissionResolveMessage" class="form-message hidden"></p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="commissionResolveDialog">Cancelar</button><button id="btnSaveCommissionResolution" class="btn primary big" type="submit">Guardar decisión</button></div>
     </form>
   </dialog>
 
@@ -504,7 +521,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=100"></script>
-  <script src="app.js?v=100"></script>
+  <script src="config.js?v=110"></script>
+  <script src="app.js?v=110"></script>
 </body>
 </html>
