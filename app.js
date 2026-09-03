@@ -174,6 +174,7 @@ async function loadAll(options={}) {
 
 function showView(name) {
   if(!isAdmin()&&ADMIN_VIEWS.has(name))return toast("Esta sección requiere permisos de administrador.","error");
+  if(name==="recibos"&&!canIssueDocuments())return toast("Esta sección requiere permiso para comprobantes y recibos.","error");
   state.currentView=name;
   $$(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
   $$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
@@ -320,7 +321,7 @@ function renderChecks() {
   $("#checksList").className="card-list"; $("#checksList").innerHTML=rows.map(c=>{const due=daysFromToday(c.fecha_vencimiento);return `<article class="data-card"><div><h3>${esc(c.banco||"Cheque")} · ${esc(c.numero||"Sin número")}</h3><p>${esc(c.cliente||"")} · Librador: ${esc(c.librador||"—")}</p><div class="meta"><span class="pill ${due<0?'red':due<=7?'amber':''}">Vence ${formatDate(c.fecha_vencimiento)}</span><span class="pill">${esc(c.estado||"EN_CARTERA")}</span></div></div><div class="card-side"><strong>${money(c.importe)}</strong><div class="row-actions">${!["COBRADO","RECHAZADO","ANULADO"].includes(String(c.estado||"").toUpperCase())?`<button class="mini-btn primary" data-check-status="${esc(c.cheque_id)}" data-status="COBRADO">Cobrado</button><button class="mini-btn danger" data-check-status="${esc(c.cheque_id)}" data-status="RECHAZADO">Rechazado</button>`:""}</div></div></article>`}).join("")||'<div class="empty">No hay cheques con ese filtro.</div>';
 }
 
-const ADMIN_VIEWS=new Set(["cuentas","recibos","cheques","maestros","clientes","usuarios","ofertas","publicidad","reportes","config"]);
+const ADMIN_VIEWS=new Set(["cuentas","cheques","maestros","clientes","usuarios","ofertas","publicidad","reportes","config"]);
 function gestionRole(value){
   const role=normalize(value).replace(/\s+/g,"_");
   if(["super_admin","superadmin"].includes(role))return "super_admin";
@@ -334,8 +335,10 @@ function canIssueDocuments(){return isAdmin()||state.permissions?.can_issue_docu
 function sourceWritesEnabled(){return isAdmin()&&state.permissions?.source_writes_enabled===true}
 function applyPermissionsUI(){
   document.body.classList.toggle("role-limited",!isAdmin());
+  document.body.classList.toggle("role-issuer",!isAdmin()&&canIssueDocuments());
   $$("[data-view]").forEach(button=>{if(ADMIN_VIEWS.has(button.dataset.view))button.classList.toggle("permission-hidden",!isAdmin())});
   $$("[data-go]").forEach(button=>{if(ADMIN_VIEWS.has(button.dataset.go))button.classList.toggle("permission-hidden",!isAdmin())});
+  $$("[data-view=\"recibos\"],[data-go=\"recibos\"]").forEach(button=>button.classList.toggle("permission-hidden",!canIssueDocuments()));
   $("#btnMore")?.classList.toggle("permission-hidden",!isAdmin());
   ["#btnNewOperation","#btnNewOperation2"].forEach(selector=>$(selector)?.classList.toggle("permission-hidden",!canIssueDocuments()));
 }
@@ -684,7 +687,7 @@ function renderUsers(){
   $("#usersList").className="card-list";
   $("#usersList").innerHTML=rows.map(user=>{
     const gestion=gestionRole(user.rol_gestion),canIssue=activeValue(user.permiso_comprobantes)||["admin","super_admin"].includes(gestion);
-    return `<article class="data-card user-master-card ${activeValue(user.activo)?"":"inactive"}"><div><h3>${esc(user.nombre||user.usuario)}</h3><p>@${esc(user.usuario||"—")} · ID ${esc(user.id)}</p><div class="meta"><span class="pill">${esc(sourceRoleLabel(user.rol))}</span><span class="pill violet">${esc(gestionRoleLabel(gestion))}</span>${canIssue?'<span class="pill green">Puede emitir comprobantes</span>':""}<span class="pill ${activeValue(user.activo)?"green":"red"}">${activeValue(user.activo)?"Activo":"Inactivo"}</span></div></div><div class="card-side"><button class="mini-btn primary" data-edit-user="${esc(user.id)}">Editar</button></div></article>`;
+    return `<article class="data-card user-master-card ${activeValue(user.activo)?"":"inactive"}"><div><h3>${esc(user.nombre||user.usuario)}</h3><p>@${esc(user.usuario||"—")} · ID ${esc(user.id)}</p><div class="meta"><span class="pill">${esc(sourceRoleLabel(user.rol))}</span><span class="pill violet">${esc(gestionRoleLabel(gestion))}</span>${canIssue?'<span class="pill green">Comprobantes y recibos</span>':""}<span class="pill ${activeValue(user.activo)?"green":"red"}">${activeValue(user.activo)?"Activo":"Inactivo"}</span></div></div><div class="card-side"><button class="mini-btn primary" data-edit-user="${esc(user.id)}">Editar</button></div></article>`;
   }).join("")||'<div class="empty">No hay usuarios con esos filtros.</div>';
 }
 function fillUserClientOptions(value=""){
@@ -892,8 +895,8 @@ function openOperation(order=null) {
   state.currentOrder=order;state.operationPriceList="lista_1"; state.draftItems=(order?.items||[]).map(i=>({id_producto:i.id_producto||i.id, nombre:i.nombre||i.detalle, cantidad:numeric(i.cantidad||i.total), precio:numeric(i.precio)}));
   state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";state.autoPaidAmount=false;state.productSearchResults=[];state.productSearchIndex=0;
   $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");
-  const orderSeller=sellerById(order?.vendedor_id)||sellers().find(user=>normalize(user.nombre)===normalize(order?.vendedor)),sessionSeller=sellerById(state.user?.id),selectedSeller=isAdmin()?orderSeller:sessionSeller;
-  $("#opSeller").innerHTML=sellerOptions(selectedSeller?.id||"");$("#opSeller").value=selectedSeller?.id||"";$("#opSeller").disabled=!isAdmin();
+  const orderSeller=sellerById(order?.vendedor_id)||sellers().find(user=>normalize(user.nombre)===normalize(order?.vendedor)),sessionSeller=sellerById(state.user?.id),selectedSeller=orderSeller||sessionSeller;
+  $("#opSeller").innerHTML=sellerOptions(selectedSeller?.id||"");$("#opSeller").value=selectedSeller?.id||"";$("#opSeller").disabled=!!orderSeller||!canIssueDocuments();
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");$("#btnOccasionalClient").classList.remove("hidden");renderOperationClientResults();
   let matchedClient=false,clientWarning="";if(order){const match=matchOrderClient(order);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else if(match.kind==="occasional"){selectOrderOccasionalClient(order);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Usá la dirección del pedido para elegir la ficha correcta.",missing_id:"El ID del cliente ya no coincide con una ficha activa. Elegí el cliente antes de guardar.",missing:"El pedido no tiene datos suficientes para identificar al cliente. Elegilo antes de guardar."};clientWarning=messages[match.reason]||messages.missing;const hint=$("#opClientSearchHint");hint.textContent=clientWarning;hint.className="client-search-hint error"}}
@@ -952,7 +955,7 @@ function startReceiptClientSearch(){
   $("#receiptClient").value="";$("#receiptClientSearch").value="";$("#receiptClientSearch").classList.remove("hidden");$("#receiptClientSelected").classList.add("hidden");$("#receiptClientResults").classList.remove("hidden");updateReceiptOperations();renderReceiptClientPicker();setReceiptMessage();setTimeout(()=>$("#receiptClientSearch").focus(),40);
 }
 function openReceipt(clientId="") {
-  if(!isAdmin())return toast("Sólo administración puede ingresar recibos.","error");
+  if(!canIssueDocuments())return toast("Tu usuario no tiene permiso para generar recibos.","error");
   $("#receiptForm").reset();$("#receiptClient").value="";$("#receiptDate").value=todayISO();$("#receiptAmount").readOnly=false;$("#receiptMixedFields").classList.add("hidden");$("#receiptCheckFields").classList.add("hidden");setReceiptMessage();
   if(clientId)selectReceiptClient(clientId);else startReceiptClientSearch();
   $("#receiptDialog").showModal();if(!clientId)setTimeout(()=>$("#receiptClientSearch").focus(),80);
@@ -976,7 +979,7 @@ function stageCreatedReceipt(data,payload,payments,amount,operation){
   saveCurrentCache();
 }
 async function saveReceipt(event){
-  event.preventDefault();if(!isAdmin())return toast("Sólo administración puede ingresar recibos.","error");const btn=$("#btnSaveReceipt");setReceiptMessage();
+  event.preventDefault();if(!canIssueDocuments())return toast("Tu usuario no tiene permiso para generar recibos.","error");const btn=$("#btnSaveReceipt");setReceiptMessage();
   try{
     const account=accountByReference($("#receiptClient").value);if(!account)throw new Error("Elegí un cliente con saldo pendiente.");
     if(!$("#receiptDate").value)throw new Error("Elegí la fecha del recibo.");

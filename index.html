@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=82">
+  <link rel="stylesheet" href="styles.css?v=83">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -322,7 +322,7 @@
         <div class="section-head"><div><h3>D9 Gestión</h3><p>Permisos independientes: no cambian cómo trabaja el usuario en Pedidos.</p></div></div>
         <div class="form-grid">
           <label>Perfil en Gestión<select id="userGestionRole"><option value="sin_acceso">Sin acceso</option><option value="vendedor">Vendedor</option><option value="admin">Admin</option><option value="super_admin">Super admin 😎</option></select></label>
-          <label>Emitir comprobantes<select id="userCanIssue"><option value="no">No</option><option value="si">Sí</option></select><small>Admin y Super admin siempre pueden emitir.</small></label>
+          <label>Comprobantes y recibos<select id="userCanIssue"><option value="no">No</option><option value="si">Sí</option></select><small>Permite operar para todos los vendedores. Admin y Super admin siempre tienen acceso.</small></label>
         </div>
       </section>
       <p id="userFormMessage" class="form-message hidden"></p>
@@ -477,6 +477,6 @@
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
   <script src="config.js?v=82"></script>
-  <script src="app.js?v=82"></script>
+  <script src="app.js?v=83"></script>
 </body>
 </html>

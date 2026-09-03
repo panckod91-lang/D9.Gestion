@@ -2,7 +2,15 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.8.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.8.3-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.8.3-prod
+
+- Convierte el permiso especial en acceso de reemplazo operativo: el autorizado puede consultar pedidos y comprobantes de todos los vendedores.
+- Habilita el módulo Recibos y la carga de cobranzas para ese usuario, sin otorgarle administración de maestros, usuarios, configuración, anulaciones ni estados de cheques.
+- Al convertir un pedido, conserva y bloquea el vendedor original aunque el comprobante sea generado por otra persona.
+- En comprobantes creados desde cero, permite elegir el vendedor correspondiente.
+- Los usuarios de Gestión sin permiso operativo conservan la vista limitada a su propia actividad.
 
 ## v0.8.2-prod
 
@@ -10,7 +18,7 @@ Versión actual: `v0.8.2-prod`, conectada al despliegue propio de **D9 Gestión*
 - Mantiene intacto el campo `rol` que ya consumen D9 Pedidos y D9 Admin: vendedor, venta mostrador, cliente o admin.
 - Agrega al final de esa misma hoja `rol_gestion` y `permiso_comprobantes`, sin duplicar usuarios ni cambiar IDs existentes.
 - Define perfiles de Gestión: sin acceso, vendedor, admin y super admin. Admin y super admin tienen las mismas funciones operativas.
-- Permite que un vendedor autorizado emita comprobantes, forzando el comprobante a su propio `vendedor_id` y limitando la consulta a sus pedidos y comprobantes.
+- Permite asignar a un vendedor el acceso operativo a comprobantes y recibos.
 - Reserva recibos, cuentas corrientes, cheques, maestros, usuarios, reportes, configuración y anulaciones para administración.
 - Protege al administrador contra la desactivación o pérdida accidental de su propio acceso.
 - Las claves nunca se envían al navegador; al editar, una clave vacía conserva la existente.
