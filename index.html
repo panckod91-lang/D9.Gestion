@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=83">
+  <link rel="stylesheet" href="styles.css?v=90">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -330,6 +330,23 @@
     </form>
   </dialog>
 
+  <dialog id="commissionDialog" class="dialog commission-dialog">
+    <form id="commissionForm" method="dialog">
+      <div class="dialog-head"><div><small>MAESTRO DE COMISIONES</small><h2 id="commissionSellerName">Vendedor</h2></div><button type="button" class="dialog-close" data-close="commissionDialog">×</button></div>
+      <input id="commissionRuleId" type="hidden">
+      <input id="commissionSellerId" type="hidden">
+      <div class="commission-info"><strong>Comisión general del vendedor</strong><span>La regla se guarda en D9 Gestión y se vincula al usuario central por su ID. No agrega porcentajes a la hoja <code>usuarios</code>.</span></div>
+      <div class="form-grid commission-fields">
+        <label>Porcentaje<input id="commissionPercentage" inputmode="decimal" autocomplete="off" placeholder="Ej.: 3" required><small>Ingresá 3 para representar el 3%.</small></label>
+        <label>Vigente desde<input id="commissionFrom" type="date" required></label>
+        <label>Estado<select id="commissionActive"><option value="si">Activa</option><option value="no">Inactiva</option></select></label>
+      </div>
+      <p class="commission-future">La estructura ya admite excepciones por marca. En esta primera etapa se carga únicamente la regla GENERAL.</p>
+      <p id="commissionFormMessage" class="form-message hidden"></p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="commissionDialog">Cancelar</button><button id="btnSaveCommission" class="btn primary big" type="submit">Guardar comisión</button></div>
+    </form>
+  </dialog>
+
   <dialog id="productDialog" class="dialog">
     <form id="productForm" method="dialog">
       <div class="dialog-head"><div><small>MAESTRO CENTRAL</small><h2 id="productDialogTitle">Nuevo producto</h2></div><button type="button" class="dialog-close" data-close="productDialog">×</button></div>
@@ -476,7 +493,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=82"></script>
-  <script src="app.js?v=83"></script>
+  <script src="config.js?v=90"></script>
+  <script src="app.js?v=90"></script>
 </body>
 </html>

@@ -2,7 +2,16 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.8.3-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.9.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.9.0-prod
+
+- Agrega en cada vendedor del módulo **Usuarios** la carga de su comisión general, visible como porcentaje o como pendiente de definir.
+- Guarda las reglas exclusivamente en la nueva hoja `comisiones_reglas` de la Sheet de Gestión, vinculadas al `vendedor_id` central; no duplica usuarios ni agrega porcentajes a la hoja `usuarios`.
+- La estructura incorpora marca, período de vigencia y estado para admitir más adelante excepciones por marca sin migrar el modelo.
+- Sólo Admin y Super admin pueden consultar o modificar las reglas; cada cambio queda registrado en `auditoria`.
+- Esta versión configura las reglas. Todavía no calcula ni liquida comisiones sobre comprobantes; esa etapa se incorporará junto con las fotografías históricas necesarias.
+- No requiere cambios en D9 Pedidos, D9 Admin ni D9 Script PROD.
 
 ## v0.8.3-prod
 
