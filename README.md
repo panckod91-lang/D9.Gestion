@@ -2,7 +2,16 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.11.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.11.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.11.2-prod
+
+- Detecta automáticamente pedidos nuevos mientras Gestión permanece abierta.
+- Consulta cada 15 segundos una huella liviana de la hoja `pedidos` y sólo descarga el historial cuando la huella cambia.
+- Vuelve a consultar inmediatamente al regresar a la pestaña o recuperar el foco.
+- Actualiza Inicio y Pedidos sin recargar la aplicación, cerrar diálogos ni alterar formularios en curso.
+- Pausa las consultas cuando la app está en segundo plano o cuando Ale está revisando un rango histórico personalizado.
+- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni la Sheet principal.
 
 ## v0.11.1-prod
 

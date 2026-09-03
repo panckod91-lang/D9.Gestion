@@ -4,6 +4,7 @@ const CONFIG = window.D9_GESTION_CONFIG || {};
 const API_URL = String(CONFIG.API_URL || "").trim();
 const STORAGE = { token:"d9g_token", user:"d9g_user" };
 const DATA_CACHE = { db:"d9_gestion_local", store:"snapshots", key:"bootstrap", version:1 };
+const ORDER_POLL_MS = 15000;
 const $ = (s, root=document) => root.querySelector(s);
 const $$ = (s, root=document) => [...root.querySelectorAll(s)];
 const numeric = value => {
@@ -48,6 +49,7 @@ const state = {
   operationPriceList:"lista_1",
   cacheLoaded:false,
   ordersRangeActive:false,
+  ordersRevision:"",
   bulkPriceChanges:[],
   sellerSuggestions:{},
   sellerAssignments:{},
@@ -55,6 +57,9 @@ const state = {
   clientImport:null,
   clientImportDecisions:{}
 };
+
+let ordersPollTimer=null;
+let ordersPollBusy=false;
 
 function openDataCache() {
   return new Promise((resolve,reject)=>{
@@ -120,6 +125,7 @@ function saveSession(data) {
 }
 function clearSession() { state.token=""; state.user=null; localStorage.removeItem(STORAGE.token); localStorage.removeItem(STORAGE.user); }
 function showLogin(message="") {
+  stopOrderPolling();
   $("#loginScreen").classList.remove("hidden"); $("#app").classList.add("hidden");
   const el=$("#loginMessage"); el.textContent=message||"Acceso exclusivo para usuarios autorizados."; el.classList.toggle("error",!!message);
 }
@@ -138,7 +144,7 @@ async function login(event) {
   const button=$("#loginForm button"); button.disabled=true; button.textContent="Ingresando…";
   try {
     const data=await apiPost("login",{usuario:$("#loginUser").value.trim(),clave:$("#loginPassword").value});
-    saveSession(data);showApp();const cached=await showCachedData();await loadAll({silent:cached});
+    saveSession(data);showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();
   } catch(err) { showLogin(err.message); }
   finally { button.disabled=false; button.textContent="Ingresar"; }
 }
@@ -149,11 +155,43 @@ function applyBootstrap(data) {
   state.source={
     clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], usuarios_admin:data.source?.usuarios_admin||data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ofertas:data.source?.ofertas||[], publicidad:data.source?.publicidad||[]
   };
+  if(data.source?.pedidos_revision)state.ordersRevision=String(data.source.pedidos_revision);
   state.gestion={
     operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], comisiones_reglas:data.gestion?.comisiones_reglas||[], comisiones_cierres:data.gestion?.comisiones_cierres||[], comisiones_detalle:data.gestion?.comisiones_detalle||[], config:data.gestion?.config||{}
   };
   state.gestion.operaciones.forEach(operation=>operation.numero=canonicalOperationNumber(operation.numero,operation.tipo));
   hydrateConfig();applyPermissionsUI();populateSelectors();hydrateMasterFilters();hydrateClientFilters();renderAll();
+}
+
+function stopOrderPolling(){
+  if(ordersPollTimer)clearInterval(ordersPollTimer);
+  ordersPollTimer=null;
+}
+function startOrderPolling(){
+  stopOrderPolling();
+  if(!state.token)return;
+  ordersPollTimer=setInterval(()=>void pollOrders(),ORDER_POLL_MS);
+}
+function canPollOrders(){
+  return !!state.token&&document.visibilityState==="visible"&&!$("#app").classList.contains("hidden")&&!state.ordersRangeActive;
+}
+async function pollOrders(){
+  if(ordersPollBusy||!canPollOrders())return;
+  ordersPollBusy=true;
+  try{
+    const check=await apiGet("pedidos_revision"),revision=String(check.revision||"");
+    if(!revision||revision===state.ordersRevision)return;
+    const previousIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||"")));
+    const data=await apiGet("pedidos");
+    state.source.pedidos=data.pedidos||[];
+    state.ordersRevision=String(data.revision||revision);
+    const newOrders=state.source.pedidos.filter(order=>!previousIds.has(String(order.pedido_id||"")));
+    populateSelectors();renderHome();if(state.currentView==="pedidos")renderOrders();saveCurrentCache();
+    const time=new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+    setSync(newOrders.length?`${newOrders.length===1?"Pedido nuevo":"Pedidos nuevos"} · ${time}`:`Pedidos actualizados ${time}`);
+  }catch(err){
+    if(/sesión|token|autoriz/i.test(err.message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
+  }finally{ordersPollBusy=false}
 }
 async function showCachedData() {
   const cached=await readDataCache();
@@ -190,7 +228,7 @@ function showView(name) {
 async function loadOrdersHistory(){
   const from=$("#ordersFrom").value,to=$("#ordersTo").value;if(from&&to&&from>to)return toast("La fecha desde no puede ser posterior a la fecha hasta.","error");
   const button=$("#btnReloadOrders");button.disabled=true;button.textContent="Cargando…";setSync(from||to?"Buscando pedidos del período…":"Cargando pedidos recientes…");
-  try{const data=await apiGet("pedidos",{from,to});state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);populateSelectors();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
+  try{const data=await apiGet("pedidos",{from,to});state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);if(!state.ordersRangeActive&&data.revision)state.ordersRevision=String(data.revision);populateSelectors();renderHome();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
   catch(err){toast(err.message||"No se pudo cargar el historial de pedidos.","error");setSync("No se pudo actualizar Pedidos",true)}
   finally{button.disabled=false;button.textContent="↻ Actualizar"}
 }
@@ -1186,7 +1224,9 @@ function bindEvents(){
   $("#btnNewUser").addEventListener("click",()=>openUserEditor());$("#userForm").addEventListener("submit",saveUser);$("#commissionForm").addEventListener("submit",saveCommission);$("#commissionResolveForm").addEventListener("submit",saveCommissionResolution);$("#commissionResolveMode").addEventListener("change",updateCommissionResolutionMode);$("#userRole").addEventListener("change",updateUserRoleFields);$("#userGestionRole").addEventListener("change",updateUserRoleFields);[["#usersSearch","input"],["#usersStatus","change"],["#usersGestionRole","change"]].forEach(([selector,eventName])=>$(selector).addEventListener(eventName,renderUsers));
   ["#ordersFrom","#ordersTo"].forEach(selector=>$(selector).addEventListener("change",loadOrdersHistory));$("#ordersList").addEventListener("click",event=>{if(event.target.closest(".order-quick-actions"))event.preventDefault()});$("#btnReloadOrders").addEventListener("click",loadOrdersHistory);$("#btnOrdersPdf").addEventListener("click",printOrdersReport);$("#btnOrdersWhatsApp").addEventListener("click",shareOrdersWhatsApp);
   ["#reportSalesFrom","#reportSalesTo","#reportSalesSeller"].forEach(selector=>$(selector).addEventListener("change",()=>$("#salesReportResults").classList.add("hidden")));$("#btnRunSalesReport").addEventListener("click",renderSalesReport);$("#btnPrintSalesReport").addEventListener("click",printSalesReport);["#reportCommissionFrom","#reportCommissionTo","#reportCommissionSeller"].forEach(selector=>$(selector).addEventListener("change",()=>$("#commissionReportResults").classList.add("hidden")));$("#btnRunCommissionReport").addEventListener("click",renderCommissionReport);$("#btnPrintCommissionReport").addEventListener("click",printCommissionReport);$("#btnCloseCommissions").addEventListener("click",closeCommissions);
+  window.addEventListener("focus",()=>void pollOrders());
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void pollOrders()});
 }
 
-async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});}
+async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();}
 boot();
