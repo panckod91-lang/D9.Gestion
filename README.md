@@ -2,7 +2,15 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.11.3-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.12.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.12.0-prod
+
+- Agrega **Nuevo cliente** dentro de Nuevo comprobante reutilizando el formulario y guardado del módulo Clientes.
+- Al guardar vuelve al comprobante abierto, selecciona el cliente nuevo y conserva productos, importes y demás datos cargados.
+- Al elegir o cambiar un cliente registrado aplica su vendedor asignado; luego permite modificarlo manualmente hasta volver a cambiar de cliente.
+- Identifica pedidos ya usados, muestra los comprobantes generados y exige confirmar **Generar igualmente** para reutilizarlos.
+- Es una actualización exclusiva de frontend; conserva sin cambios el Apps Script de Gestión v0.11.3.
 
 ## v0.11.3-prod
 

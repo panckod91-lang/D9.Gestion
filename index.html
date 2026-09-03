@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=111">
+  <link rel="stylesheet" href="styles.css?v=120">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -229,7 +229,10 @@
             <label>Nombre del cliente ocasional<input id="opOccasionalName" maxlength="120" autocomplete="off" list="opOccasionalOptions" placeholder="Ej: Juan Pérez"><datalist id="opOccasionalOptions"></datalist></label>
             <button id="btnCancelOccasionalClient" type="button" class="mini-btn">Elegir cliente de la lista</button>
           </div>
-          <button id="btnOccasionalClient" type="button" class="btn secondary occasional-client-button">Cliente ocasional</button>
+          <div id="operationClientActions" class="operation-client-actions">
+            <button id="btnOccasionalClient" type="button" class="btn secondary occasional-client-button">Cliente ocasional</button>
+            <button id="btnCreateOperationClient" type="button" class="btn secondary create-client-button">＋ Nuevo cliente</button>
+          </div>
         </div>
       </div>
       <section id="financialCreditFields" class="subpanel financial-credit-fields hidden"><h3 id="financialCreditTitle">Ajuste de crédito</h3><p id="financialCreditHelp">Reduce la cuenta corriente sin devolver productos.</p><div class="form-grid"><label>Importe<input id="financialCreditAmount" type="number" min="0.01" step="0.01"></label><label class="wide">Motivo<input id="financialCreditConcept" maxlength="160" placeholder="Ej: bonificación comercial acordada"></label></div></section>
@@ -413,6 +416,16 @@
     </form>
   </dialog>
 
+  <dialog id="orderReuseDialog" class="dialog">
+    <div class="dialog-head"><div><small>PEDIDO YA UTILIZADO</small><h2>¿Generar otro comprobante?</h2></div><button type="button" class="dialog-close" data-close="orderReuseDialog">×</button></div>
+    <div class="order-reuse-warning">
+      <strong id="orderReuseTitle">Este pedido ya fue convertido.</strong>
+      <p id="orderReuseDetail"></p>
+      <small>Continuá únicamente si necesitás crear otro comprobante desde el mismo pedido de forma intencional.</small>
+    </div>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close="orderReuseDialog">Cancelar</button><button id="btnConfirmOrderReuse" type="button" class="btn danger big">Generar igualmente</button></div>
+  </dialog>
+
   <dialog id="clientDialog" class="dialog wide-dialog client-dialog">
     <form id="clientForm" method="dialog">
       <div class="dialog-head"><div><small>MAESTRO CENTRAL</small><h2 id="clientDialogTitle">Nuevo cliente</h2></div><button type="button" class="dialog-close" data-close="clientDialog">×</button></div>
@@ -521,7 +534,7 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=111"></script>
-  <script src="app.js?v=111"></script>
+  <script src="config.js?v=120"></script>
+  <script src="app.js?v=120"></script>
 </body>
 </html>
