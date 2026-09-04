@@ -2,7 +2,33 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.12.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.13.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.13.0-prod
+
+- Una única pantalla Comprobantes, con accesos Recientes y Con saldo sobre los mismos filtros.
+- Período, tipo, cliente buscable (incluidos históricos y ocasionales), vendedor, estado documental y saldo.
+- Entrada con últimos 30 días, vigentes y todos los tipos; Con saldo consulta todo el historial.
+- Orden por fecha documental, con creación como desempate; páginas locales de 25 registros y conservación al volver del detalle.
+- Búsqueda ampliable explícitamente a todo el historial, mensajes de filtros sin resultados y alcance visible.
+- Filas alineadas en escritorio y tarjetas móviles; filtros secundarios desplegables.
+- Lista con Ver, Imprimir y Más acciones; detalle con vínculos remito/NC y explicación de restricciones conocidas.
+- Sin saldo pendiente no se presenta como Pagado; Anulado tiene prioridad visual; NC identificadas por su subtipo.
+- Nuevo operations-ui.js concentra presentación y filtros. Se reutilizan sin cambios los circuitos operativos de app.js.
+- Scripts, endpoints, cuenta corriente, sincronización, impresión y resto de apps sin cambios.
+
+## v0.12.2-prod
+
+- Reduce espacios verticales entre datos de cada pedido reciente en móvil.
+- Separa pedidos con fondo suave, borde y esquinas redondeadas.
+- Conserva tamaños de texto y botones, escritorio y lógica de v0.12.1.
+
+## v0.12.1-prod
+
+- Ajusta únicamente Pedidos recientes del Inicio en pantallas de hasta 760 px.
+- Cliente y datos secundarios usan todo el ancho; importe en línea propia y acciones debajo, con salto de línea cuando sea necesario.
+- Conserva la cabecera, Ver todos y el diseño de escritorio.
+- `app.js`, Scripts, endpoints y D9 Pedidos permanecen intactos.
 
 ## v0.12.0-prod
 
