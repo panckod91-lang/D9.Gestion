@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=122">
+  <link rel="stylesheet" href="styles.css?v=130">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -86,8 +86,24 @@
 
         <section id="view-operaciones" class="view">
           <div class="page-head"><div><h2>Comprobantes</h2><p>Remitos, notas de crédito, facturas pro forma y notas de venta creados en Gestión.</p></div><button id="btnNewOperation2" class="btn primary">＋ Nuevo</button></div>
-          <div class="filters"><input id="operationsSearch" placeholder="Buscar número, cliente u origen"><select id="operationsType"><option value="">Todos los tipos</option><option value="REMITO">Remitos · R</option><option value="NOTA_CREDITO">Notas de crédito · NC</option><option value="PROFORMA">Facturas pro forma · FPF</option><option value="NOTA_VENTA">Notas de venta · NDV</option></select><select id="operationsStatus"><option value="active">Vigentes</option><option value="all">Todos</option><option value="annulled">Anulados</option></select></div>
-          <div id="operationsList" class="card-list empty">Todavía no hay comprobantes.</div>
+          <section class="panel docs-controls">
+            <div class="docs-presets" aria-label="Consultas rápidas"><button type="button" class="mini-btn" data-doc-preset="recent">Recientes</button><button type="button" class="mini-btn" data-doc-preset="balance">Con saldo</button></div>
+            <label class="docs-search">Buscar comprobantes<input id="operationsSearch" type="search" placeholder="Número, cliente, vendedor o pedido de origen" autocomplete="off"></label>
+            <details id="operationsFilters" class="docs-filters"><summary id="operationsFiltersLabel">Filtros</summary><div class="docs-filter-grid">
+              <label>Período<select id="operationsPeriod"><option value="today">Hoy</option><option value="7">Últimos 7 días</option><option value="30" selected>Últimos 30 días</option><option value="custom">Personalizado</option><option value="all">Todo el historial</option></select></label>
+              <label>Tipo<select id="operationsType"><option value="">Todos los tipos</option><option value="REMITO">Remitos · R</option><option value="PROFORMA">Proformas · FPF</option><option value="NOTA_VENTA">Notas de venta · NDV</option><option value="NOTA_CREDITO">Notas de crédito · NC</option></select></label>
+              <label>Vendedor<select id="operationsSeller"><option value="">Todos</option></select></label>
+              <label>Estado documental<select id="operationsStatus"><option value="active">Vigentes</option><option value="annulled">Anulados</option><option value="all">Todos</option></select></label>
+              <label>Saldo del comprobante<select id="operationsBalance"><option value="">Cualquiera</option><option value="with">Con saldo</option><option value="without">Sin saldo pendiente</option></select></label>
+              <div class="docs-client-filter"><label>Buscar cliente en el selector<input id="operationsClientSearch" type="search" placeholder="Nombre o código" autocomplete="off"></label><label>Cliente<select id="operationsClient"><option value="">Todos los clientes</option></select></label></div>
+              <div id="operationsDates" class="docs-dates hidden"><label>Desde<input id="operationsFrom" type="date"></label><label>Hasta<input id="operationsTo" type="date"></label></div>
+            </div></details>
+            <p id="operationsScope" class="docs-scope"></p>
+            <p class="docs-help">El saldo corresponde a cada comprobante, no a la deuda total del cliente. Los datos usan la última sincronización de Gestión; ↻ actualiza.</p>
+          </section>
+          <div id="operationsList" class="docs-list"></div>
+          <div id="operationsExpandSearch" class="docs-expand hidden"><span>No hubo coincidencias dentro del período activo.</span><button id="btnOperationsAllHistory" type="button" class="mini-btn primary">Buscar en todo el historial</button></div>
+          <nav class="docs-pagination" aria-label="Páginas de comprobantes"><button id="operationsPrev" type="button" class="mini-btn">Anterior</button><span id="operationsSummary" aria-live="polite"></span><button id="operationsNext" type="button" class="mini-btn">Siguiente</button></nav>
         </section>
 
         <section id="view-cuentas" class="view">
@@ -534,7 +550,8 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=122"></script>
-  <script src="app.js?v=122"></script>
+  <script src="config.js?v=130"></script>
+  <script src="operations-ui.js?v=130"></script>
+  <script src="app.js?v=130"></script>
 </body>
 </html>
