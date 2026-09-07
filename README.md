@@ -2,7 +2,15 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.14.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.14.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.14.2-prod
+
+- Corrige el `NetworkError` fugaz que podía mostrar Firefox al refrescar Gestión.
+- El origen exacto era la lectura POST `bootstrap` ejecutada por `loadAll()` después de mostrar la caché local.
+- Las lecturas con un fallo transitorio de red se reintentan una sola vez después de 400 ms.
+- Las escrituras no se reintentan y mantienen todas sus protecciones actuales.
+- Si la red continúa caída, se muestra un mensaje claro en español y se conservan los datos guardados.
 
 ## v0.14.1-prod
 

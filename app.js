@@ -5,6 +5,7 @@ const API_URL = String(CONFIG.API_URL || "").trim();
 const STORAGE = { token:"d9g_token", user:"d9g_user" };
 const DATA_CACHE = { db:"d9_gestion_local", store:"snapshots", key:"bootstrap", version:1 };
 const ORDER_POLL_MS = 15000;
+const NETWORK_READ_RETRY_MS = 400;
 const $ = (s, root=document) => root.querySelector(s);
 const $$ = (s, root=document) => [...root.querySelectorAll(s)];
 const numeric = value => {
@@ -113,7 +114,20 @@ async function apiPost(action, payload={}) {
   const res = await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
   return parseResponse(res);
 }
-function apiRead(action,params={}){return apiPost(action,params)}
+function isNetworkFetchError(error){return error instanceof TypeError||/networkerror|failed to fetch|load failed|network request failed|fetch resource/i.test(String(error?.message||error||""))}
+function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+async function apiRead(action,params={}){
+  try{return await apiPost(action,params)}
+  catch(error){
+    if(!isNetworkFetchError(error))throw error;
+    await wait(NETWORK_READ_RETRY_MS);
+    try{return await apiPost(action,params)}
+    catch(retryError){
+      if(isNetworkFetchError(retryError))throw new Error("No se pudo conectar con D9. Se mantienen los datos guardados.");
+      throw retryError;
+    }
+  }
+}
 
 function setSync(text, error=false) { const el=$("#syncBadge"); el.textContent=text; el.classList.toggle("error",error); }
 function saveSession(data) {
