@@ -2,7 +2,18 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.13.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.14.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.14.0-prod
+
+- Agrega `Dto. %` por producto al crear cualquier comprobante.
+- Conserva precio unitario original, descuento individual y subtotal neto en `operacion_items`.
+- Aplica el descuento general después de sumar los subtotales ya descontados.
+- Muestra el descuento individual en detalle e impresión/reimpresión.
+- Las notas de crédito por devolución heredan precio y descuento de la línea original.
+- Los comprobantes anteriores siguen interpretándose con descuento de línea 0%.
+
+Requiere actualizar el frontend y el Apps Script propio de Gestión. No modifica D9 Pedidos, D9 Admin, Worker ni la Sheet principal.
 
 ## v0.13.0-prod
 
