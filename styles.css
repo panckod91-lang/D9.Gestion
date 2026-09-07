@@ -121,3 +121,10 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:lin
   .item-row .line-total{grid-column:1/-1;grid-row:3;padding:3px 2px 1px;font-size:12px;text-align:right}
   .item-row .line-total:before{content:"Subtotal: ";color:var(--muted);font-weight:700}
 }
+
+/* v0.14.1 · Inicio escritorio: cliente → acciones → importe. */
+@media(min-width:761px){
+  #homeOrders>.compact-item>.row-actions{flex-wrap:nowrap;min-width:0}
+  #homeOrders>.compact-item>.row-actions .order-create-quick{order:1}
+  #homeOrders>.compact-item>.row-actions>b{order:2;min-width:126px;margin-left:10px;text-align:right;white-space:nowrap;font-size:17px}
+}

@@ -2,7 +2,14 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.14.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.14.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.14.1-prod
+
+- Alinea en escritorio los pedidos recientes como Cliente → Acción → Importe.
+- Mantiene todos los importes en una columna limpia al extremo derecho.
+- Conserva sin cambios la tarjeta, los botones, su lógica y la presentación móvil aprobada.
+- Hotfix exclusivamente frontend; no requiere actualizar Apps Script.
 
 ## v0.14.0-prod
 
