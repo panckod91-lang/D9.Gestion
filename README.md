@@ -2,7 +2,18 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.14.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.15.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.15.0-prod
+
+- Agrega Importar lista dentro de Productos y precios, reutilizando las reglas del importador histórico de D9.
+- Detecta Lista 1 obligatoria y Lista 2/3 opcionales; una lista ausente se conserva sin cambios.
+- Convierte precios de origen sin IVA a precios finales con IVA 21% y redondeo a dos decimales.
+- Crea productos nuevos, actualiza existentes y oculta sin borrar los ausentes o con Lista 1 vacía/cero.
+- Presenta una revisión previa con totales y bloquea columnas faltantes, duplicados y precios inválidos.
+- Reagrupa Actualización masiva, Importar lista y Ofertas dentro de Productos y precios.
+
+Requiere actualizar el frontend y el Apps Script propio de Gestión. No modifica D9 Pedidos, D9 Admin ni Worker.
 
 ## v0.14.2-prod
 

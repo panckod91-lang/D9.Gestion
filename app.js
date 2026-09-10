@@ -52,6 +52,7 @@ const state = {
   ordersRangeActive:false,
   ordersRevision:"",
   bulkPriceChanges:[],
+  productImport:null,
   sellerSuggestions:{},
   sellerAssignments:{},
   sellerAssignmentOriginal:{},
@@ -426,7 +427,7 @@ function fillPriceListSelect(select,value=""){
 function renderMasters() {
   const q=normalize($("#mastersSearch").value),selectedList=$("#mastersPriceList").value||priceLists()[0]?.id||"lista_1";let rows=[];
   $("#productAdminNotice").textContent=!isAdmin()?"Tu sesión es de consulta; solo Ale puede modificar maestros.":sourceWritesEnabled()?"Escritura habilitada: los cambios impactan en D9_pedidos y quedan auditados.":"Modo seguro: podés revisar y preparar cambios, pero D9_pedidos está bloqueada hasta activar SOURCE_WRITES_ENABLED.";
-  $("#btnNewProduct").disabled=!isAdmin();$("#btnBulkPrices").disabled=!isAdmin();
+  $("#btnNewProduct").disabled=!isAdmin();$("#btnBulkPrices").disabled=!isAdmin();$("#btnImportProducts").disabled=!isAdmin();
   rows=adminProducts().filter(p=>matchesSearch([p.id,p.nombre,p.categoria,p.marca],q)).slice(0,500).map(p=>`<article class="data-card product-master-card ${activeValue(p.activo)?"":"inactive"}"><div><h3>${esc(p.nombre)}</h3><p>${esc(p.categoria||"Sin categoría")} · ${esc(p.marca||"Sin marca")}</p><div class="meta"><span class="pill">${esc(p.id)}</span><span class="pill ${activeValue(p.activo)?"green":"red"}">${activeValue(p.activo)?"Activo":"Oculto"}</span>${priceLists().map(list=>numeric(p[list.id])>0?`<span class="pill">${esc(list.nombre)} ${money(p[list.id])}</span>`:"").join("")}</div></div><div class="card-side"><strong>${money(p[selectedList])}</strong>${isAdmin()?`<button class="mini-btn primary" data-edit-product="${esc(p.id)}">Editar</button>`:""}</div></article>`);
   $("#mastersList").className="card-list";$("#mastersList").innerHTML=rows.join("")||'<div class="empty">Sin resultados.</div>';
 }
@@ -489,6 +490,72 @@ async function applyBulkPrices(event){
   try{const result=await apiPost("source_bulk_prices",{cambios:state.bulkPriceChanges});state.bulkPriceChanges.forEach(change=>{const product=state.source.productos_admin.find(p=>String(p.id)===String(change.id));if(product)product[change.lista]=change.nuevo});state.source.productos=state.source.productos_admin.filter(p=>activeValue(p.activo)&&priceLists().some(list=>numeric(p[list.id])>0));saveCurrentCache();toast(`${result.actualizados||0} precios actualizados`);$("#bulkPriceDialog").close();renderMasters();refreshAfterMutation()}
   catch(err){toast(err.message,"error")}
   finally{button.disabled=false;button.textContent="Aplicar cambios"}
+}
+
+const PRODUCT_IMPORT_IVA_RATE_D9=.21;
+const PRODUCT_IMPORT_XLSX_URL="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+let productImportXlsxPromise=null;
+function loadProductImportXlsx(){
+  if(window.XLSX)return Promise.resolve(window.XLSX);
+  if(productImportXlsxPromise)return productImportXlsxPromise;
+  productImportXlsxPromise=new Promise((resolve,reject)=>{
+    const script=document.createElement("script");script.src=PRODUCT_IMPORT_XLSX_URL;script.async=true;
+    script.onload=()=>window.XLSX?resolve(window.XLSX):reject(new Error("No se pudo iniciar el lector de Excel."));
+    script.onerror=()=>reject(new Error("No se pudo cargar el lector de Excel. Revisá la conexión e intentá nuevamente."));
+    document.head.appendChild(script);
+  }).catch(error=>{productImportXlsxPromise=null;throw error});
+  return productImportXlsxPromise;
+}
+function normalizeProductImportHeader(value){return normalize(value).replace(/[^a-z0-9]/g,"")}
+function productImportHeaderIndex(headers,aliases){const wanted=aliases.map(normalizeProductImportHeader);return headers.findIndex(header=>wanted.includes(normalizeProductImportHeader(header)))}
+function parseProductImportPrice(value){
+  if(value===null||value===undefined||String(value).trim()==="")return {ok:true,value:0,empty:true};
+  if(typeof value==="number")return Number.isFinite(value)&&value>=0?{ok:true,value}:{ok:false};
+  let text=String(value).trim().replace(/\$/g,"").replace(/\s/g,"");
+  if(text.includes(",")&&text.includes("."))text=text.replace(/\./g,"").replace(",",".");else if(text.includes(","))text=text.replace(",",".");
+  const parsed=Number(text);return Number.isFinite(parsed)&&parsed>=0?{ok:true,value:parsed}:{ok:false};
+}
+function productImportFinalPrice(value){return Math.round((value*(1+PRODUCT_IMPORT_IVA_RATE_D9)+Number.EPSILON)*100)/100}
+function analyzeProductImportRows(rows,fileName){
+  if(!Array.isArray(rows)||!rows.length)throw new Error("El archivo no contiene filas.");
+  const headers=rows[0].map(value=>String(value||"").trim());
+  const columns={id:productImportHeaderIndex(headers,["Codigo","Código","ID"]),nombre:productImportHeaderIndex(headers,["Descripcion","Descripción","Nombre"]),categoria:productImportHeaderIndex(headers,["Rubro","Categoria","Categoría"]),marca:productImportHeaderIndex(headers,["Marca"]),lista_1:productImportHeaderIndex(headers,["Lista 1","Lista1","lista_1"]),lista_2:productImportHeaderIndex(headers,["Lista 2","Lista2","lista_2"]),lista_3:productImportHeaderIndex(headers,["Lista 3","Lista3","lista_3"])};
+  const missing=[columns.id<0?"Código":"",columns.nombre<0?"Descripción":"",columns.categoria<0?"Rubro/Categoría":"",columns.lista_1<0?"Lista 1":""].filter(Boolean);
+  if(missing.length)throw new Error(`Faltan columnas obligatorias: ${missing.join(", ")}.`);
+  const detectedLists=["lista_1","lista_2","lista_3"].filter(key=>columns[key]>=0),products=[],issues=[],seen=new Map();
+  rows.slice(1).forEach((row,offset)=>{
+    const rowNumber=offset+2,id=String(row[columns.id]??"").trim(),name=String(row[columns.nombre]??"").trim(),category=String(row[columns.categoria]??"").trim();
+    if(!row.some(value=>String(value??"").trim()!==""))return;
+    if(!id||!name||!category){issues.push(`Fila ${rowNumber}: faltan Código, Descripción o Rubro/Categoría.`);return;}
+    if(seen.has(id)){issues.push(`Código duplicado ${id} en filas ${seen.get(id)} y ${rowNumber}.`);return;}seen.set(id,rowNumber);
+    const product={id,nombre:name,categoria:category};if(columns.marca>=0)product.marca=String(row[columns.marca]??"").trim();
+    let valid=true;detectedLists.forEach(list=>{const parsed=parseProductImportPrice(row[columns[list]]);if(!parsed.ok){issues.push(`Fila ${rowNumber} · ${id}: precio inválido en ${priceListLabel(list)}.`);valid=false;return;}product[list]=parsed.empty?"":productImportFinalPrice(parsed.value)});
+    if(valid){product.lista_1=numeric(product.lista_1);product.activo=product.lista_1>0?"si":"no";products.push(product)}
+  });
+  if(!products.length&&!issues.length)issues.push("El archivo no contiene productos para importar.");
+  const current=adminProducts(),existingIds=new Set(current.map(product=>String(product.id))),incomingIds=new Set(products.map(product=>product.id));
+  const created=products.filter(product=>!existingIds.has(product.id)).length,updated=products.length-created,active=products.filter(product=>activeValue(product.activo)).length,hiddenZero=products.length-active,hiddenAbsent=current.filter(product=>product.id&&!incomingIds.has(String(product.id))&&activeValue(product.activo)).length;
+  return {fileName,headers,columns,detectedLists,products,issues,summary:{created,updated,active,hiddenZero,hiddenAbsent,total:products.length}};
+}
+function renderProductImport(){
+  const model=state.productImport;if(!model)return;
+  $("#productImportSource").innerHTML=`<strong>${esc(model.fileName)}</strong> · Detectadas: ${model.detectedLists.map(priceListLabel).join(", ")} · IVA 21% incluido al guardar.`;
+  const s=model.summary;$("#productImportSummary").innerHTML=`<div><small>Filas válidas</small><strong>${s.total}</strong></div><div class="safe"><small>Nuevos</small><strong>${s.created}</strong></div><div class="current"><small>Actualizados</small><strong>${s.updated}</strong></div><div><small>Activos</small><strong>${s.active}</strong></div><div class="review"><small>Ocultos por precio</small><strong>${s.hiddenZero}</strong></div><div class="review"><small>Ausentes a ocultar</small><strong>${s.hiddenAbsent}</strong></div>`;
+  const issues=$("#productImportIssues");if(model.issues.length){issues.className="form-message error";issues.innerHTML=`<strong>No se puede importar todavía.</strong><br>${model.issues.slice(0,20).map(esc).join("<br>")}${model.issues.length>20?`<br>… y ${model.issues.length-20} errores más.`:""}`}else issues.className="form-message hidden";
+  $("#productImportPreview").className="bulk-preview";$("#productImportPreview").innerHTML=model.products.length?`<div class="product-import-table"><div class="product-import-row head" style="--import-lists:${model.detectedLists.length}"><span>Producto</span>${model.detectedLists.map(list=>`<span>${esc(priceListLabel(list))}</span>`).join("")}<span>Estado</span></div>${model.products.slice(0,80).map(product=>`<div class="product-import-row" style="--import-lists:${model.detectedLists.length}"><span><b>${esc(product.id)}</b><small>${esc(product.nombre)} · ${esc(product.categoria)}</small></span>${model.detectedLists.map(list=>`<span>${numeric(product[list])>0?money(product[list]):"—"}</span>`).join("")}<span><b class="${activeValue(product.activo)?"positive":"negative"}">${activeValue(product.activo)?"Activo":"Oculto"}</b></span></div>`).join("")}</div>${model.products.length>80?`<p class="helper">Se muestran 80 de ${model.products.length} productos.</p>`:""}`:'<div class="empty">Sin filas válidas.</div>';
+  $("#productImportConfirm").checked=false;$("#btnApplyProductImport").disabled=true;
+}
+function openProductImportPicker(){if(!isAdmin())return toast("Esta sesión no puede importar productos.","error");$("#productImportFile").value="";$("#productImportFile").click()}
+async function readProductImportFile(event){
+  const file=event.target.files?.[0];if(!file)return;
+  try{const XLSX=await loadProductImportXlsx(),buffer=await file.arrayBuffer(),workbook=XLSX.read(buffer,{type:"array"}),sheet=workbook.Sheets[workbook.SheetNames[0]];if(!sheet)throw new Error("El archivo no contiene una hoja legible.");const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:""});state.productImport=analyzeProductImportRows(rows,file.name);renderProductImport();$("#productImportDialog").showModal()}catch(error){toast(error.message||"No se pudo leer el archivo.","error")}
+}
+function updateProductImportApplyState(){$("#btnApplyProductImport").disabled=!state.productImport||state.productImport.issues.length>0||!state.productImport.products.length||!$("#productImportConfirm").checked||!sourceWritesEnabled()}
+async function applyProductImport(){
+  const model=state.productImport;if(!model||model.issues.length||!model.products.length)return;if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
+  if(!confirm(`¿Importar ${model.products.length} productos y ocultar ${model.summary.hiddenAbsent} productos ausentes?`))return;
+  const button=$("#btnApplyProductImport");button.disabled=true;button.textContent="Importando…";
+  try{const result=await apiPost("source_import_products",{productos:model.products,listas:model.detectedLists});toast(`Lista importada: ${result.creados||0} nuevos, ${result.actualizados||0} actualizados y ${result.ocultos_ausentes||0} ausentes ocultos.`);$("#productImportDialog").close();await loadAll()}catch(error){toast(error.message,"error")}finally{button.textContent="Aplicar importación";updateProductImportApplyState()}
 }
 
 function adminClients(){return state.source.clientes_admin?.length?state.source.clientes_admin:state.source.clientes}
@@ -1258,6 +1325,7 @@ function bindEvents(){
   $("#opProductSearch").addEventListener("input",()=>{state.productSearchIndex=0;renderOperationProductResults()});$("#opProductSearch").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();moveProductSearchSelection(1)}else if(e.key==="ArrowUp"){e.preventDefault();moveProductSearchSelection(-1)}else if(e.key==="Enter"){e.preventDefault();const product=state.productSearchResults[state.productSearchIndex];if(product)addQuickProduct(product.id);else if($("#opProductSearch").value.trim())toast("No encontré ese producto.","error")}else if(e.key==="Escape"){$("#opProductSearch").value="";renderOperationProductResults()}});$("#opProductResults").addEventListener("click",e=>{const row=e.target.closest("[data-op-product]");if(row)addQuickProduct(row.dataset.opProduct)});$("#opItems").addEventListener("input",updateOperationTotal);$("#opItems").addEventListener("click",e=>{if(e.target.matches("[data-item-remove]")){syncDraftFromDom();state.draftItems.splice(Number(e.target.closest(".item-row").dataset.itemIndex),1);renderDraftItems();updateOperationTotal()}});
   ["#opDiscount","#opMixedCash","#opMixedTransfer","#opMixedCheck"].forEach(s=>$(s).addEventListener("input",updateOperationTotal));$("#opPaidAmount").addEventListener("input",()=>{state.autoPaidAmount=false;updateOperationTotal()});$("#opPaymentMethod").addEventListener("change",e=>{const method=e.target.value,mixed=method==="MIXTO",check=method==="CHEQUE"||mixed,fullPayment=["EFECTIVO","TRANSFERENCIA"].includes(method);state.autoPaidAmount=fullPayment;if(method==="CUENTA_CORRIENTE")$("#opPaidAmount").value="0";$("#opMixedFields").classList.toggle("hidden",!mixed);$("#opCheckFields").classList.toggle("hidden",!check);$("#opPaidAmount").readOnly=mixed;updateOperationTotal()});$("#receiptMethod").addEventListener("change",e=>{const mixed=e.target.value==="MIXTO",check=e.target.value==="CHEQUE"||mixed;$("#receiptMixedFields").classList.toggle("hidden",!mixed);$("#receiptCheckFields").classList.toggle("hidden",!check);$("#receiptAmount").readOnly=mixed;updateReceiptMixed()});["#receiptMixedCash","#receiptMixedTransfer","#receiptMixedCheck"].forEach(s=>$(s).addEventListener("input",updateReceiptMixed));$("#receiptOperation").addEventListener("change",e=>{const op=activeOperations().find(o=>String(o.operacion_id)===String(e.target.value));if(op)$("#receiptAmount").value=numeric(op.saldo).toFixed(2)});$("#receiptClientSearch").addEventListener("input",e=>{$("#receiptClient").value="";$("#receiptClientSelected").classList.add("hidden");updateReceiptOperations();renderReceiptClientPicker(e.target.value);setReceiptMessage()});
   [["#ordersSearch",renderOrders],["#ordersSeller",renderOrders],["#ordersStatus",renderOrders],["#operationsSearch",renderOperations],["#operationsType",renderOperations],["#operationsStatus",renderOperations],["#accountsSearch",renderAccounts],["#accountsFilter",renderAccounts],["#receiptDebtsSearch",renderReceiptDebtors],["#receiptsSearch",renderReceipts],["#checksSearch",renderChecks],["#checksStatus",renderChecks],["#mastersSearch",renderMasters],["#clientsSearch",renderClients],["#clientsPriceList",renderClients],["#clientsSeller",renderClients],["#clientsStatus",renderClients],["#clientsFiscal",renderClients]].forEach(([s,fn])=>$(s).addEventListener("input",fn));
+  $("#btnImportProducts").addEventListener("click",openProductImportPicker);$("#btnChooseProductImport").addEventListener("click",openProductImportPicker);$("#productImportFile").addEventListener("change",readProductImportFile);$("#productImportConfirm").addEventListener("change",updateProductImportApplyState);$("#btnApplyProductImport").addEventListener("click",applyProductImport);
   $("#btnMore").addEventListener("click",()=>$("#moreDialog").showModal());$("#btnNewProduct").addEventListener("click",()=>openProductEditor());$("#btnBulkPrices").addEventListener("click",openBulkPrices);$("#productForm").addEventListener("submit",saveProduct);$("#bulkPriceForm").addEventListener("submit",applyBulkPrices);$("#btnRefreshBulkPreview").addEventListener("click",calculateBulkPreview);$("#mastersPriceList").addEventListener("change",renderMasters);$("#btnNewClient").addEventListener("click",()=>openClientEditor());$("#clientForm").addEventListener("submit",saveClient);$("#btnDeleteClient").addEventListener("click",deleteClient);$("#btnAssignSellers").addEventListener("click",openSellerAssignment);$("#sellerAssignmentSearch").addEventListener("input",renderSellerAssignments);$("#sellerAssignmentMissing").addEventListener("change",renderSellerAssignments);$("#btnApplySellerSuggestions").addEventListener("click",applySellerSuggestions);$("#btnSaveSellerAssignments").addEventListener("click",saveSellerAssignments);$("#sellerAssignmentList").addEventListener("change",event=>{const select=event.target.closest("[data-seller-assignment]");if(select){state.sellerAssignments[select.dataset.sellerAssignment]=select.value;renderSellerAssignments()}});$("#btnImportClients").addEventListener("click",openClientImportPicker);$("#clientImportFile").addEventListener("change",readClientImportPdf);$("#clientImportReviewList").addEventListener("change",changeClientImportDecision);$("#btnApplyClientImport").addEventListener("click",applyClientImport);$$("#clientFiscalDetails input, #clientFiscalDetails select").forEach(input=>input.addEventListener("input",updateClientFiscalStatus));$("#btnNewOffer").addEventListener("click",()=>openOfferEditor());$("#offerForm").addEventListener("submit",saveOffer);$("#offerProduct").addEventListener("input",updateOfferProductInfo);$("#btnDeleteOffer").addEventListener("click",deleteOffer);$("#offersSearch").addEventListener("input",renderOffers);$("#offersStatus").addEventListener("change",renderOffers);
   $("#btnNewAd").addEventListener("click",()=>openAdEditor());$("#adForm").addEventListener("submit",saveAd);$("#adMode").addEventListener("change",()=>{updateAdMode();updateAdPreview()});$$('#adForm input, #adForm select').forEach(input=>input.addEventListener("input",updateAdPreview));$("#adsSearch").addEventListener("input",renderPublicidad);$("#adsStatus").addEventListener("change",renderPublicidad);
   $("#btnNewUser").addEventListener("click",()=>openUserEditor());$("#userForm").addEventListener("submit",saveUser);$("#commissionForm").addEventListener("submit",saveCommission);$("#commissionResolveForm").addEventListener("submit",saveCommissionResolution);$("#commissionResolveMode").addEventListener("change",updateCommissionResolutionMode);$("#userRole").addEventListener("change",updateUserRoleFields);$("#userGestionRole").addEventListener("change",updateUserRoleFields);[["#usersSearch","input"],["#usersStatus","change"],["#usersGestionRole","change"]].forEach(([selector,eventName])=>$(selector).addEventListener(eventName,renderUsers));
