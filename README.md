@@ -2,7 +2,16 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.15.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.15.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.15.1-prod
+
+- Importar lista abre primero un asistente explicativo; el selector de archivos sólo aparece al elegirlo expresamente.
+- El análisis ocurre sin escrituras y presenta archivo, listas detectadas/ausentes, IVA y cantidades antes de confirmar.
+- Cancelar o cerrar descarta la revisión sin modificar Productos.
+- Mantiene sin cambios el motor de importación, sus validaciones y el endpoint incorporado en v0.15.0.
+
+Hotfix de interfaz: si ya se instaló el Apps Script de v0.15.0, no hace falta volver a actualizarlo.
 
 ## v0.15.0-prod
 

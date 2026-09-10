@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=150">
+  <link rel="stylesheet" href="styles.css?v=151">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -434,14 +434,30 @@
   </dialog>
 
   <dialog id="productImportDialog" class="dialog wide-dialog product-import-dialog">
-    <div class="dialog-head"><div><small>PRODUCTOS Y PRECIOS</small><h2>Importar lista</h2></div><button type="button" class="dialog-close" data-close="productImportDialog">×</button></div>
-    <p id="productImportSource" class="helper import-source">Seleccioná un archivo XLS o XLSX.</p>
-    <div id="productImportSummary" class="product-import-summary"></div>
-    <div id="productImportIssues" class="form-message hidden" role="alert"></div>
-    <div id="productImportPreview" class="bulk-preview empty">Todavía no hay un archivo analizado.</div>
-    <p class="warning-box">Los precios del archivo se consideran sin IVA y se guardarán con IVA 21%, redondeados a dos decimales. Los productos ausentes quedarán inactivos y con Lista 1 en cero. Las listas que no existan en el archivo no se modificarán.</p>
-    <label class="check-label product-import-confirm"><input id="productImportConfirm" type="checkbox"> Confirmo que revisé el resumen y quiero reemplazar la lista actual.</label>
-    <div class="dialog-actions product-import-actions"><button type="button" class="btn secondary" data-close="productImportDialog">Cancelar</button><button id="btnChooseProductImport" type="button" class="btn secondary">Elegir otro archivo</button><button id="btnApplyProductImport" type="button" class="btn primary big" disabled>Aplicar importación</button></div>
+    <div class="dialog-head"><div><small>PRODUCTOS Y PRECIOS</small><h2>Importar lista de precios</h2></div><button type="button" class="dialog-close" data-close="productImportDialog">×</button></div>
+    <section id="productImportIntro" class="product-import-intro">
+      <p>Actualizá el catálogo desde el archivo de precios. D9 detectará automáticamente las listas disponibles y convertirá los precios sin IVA a precios finales con IVA.</p>
+      <div class="product-import-explanation">
+        <div><span>1</span><p><strong>Detecta las listas</strong><small>Lista 1 es obligatoria. Lista 2 y Lista 3 son opcionales.</small></p></div>
+        <div><span>2</span><p><strong>Convierte los precios</strong><small>Lee valores sin IVA y calcula el precio final con IVA 21%.</small></p></div>
+        <div><span>3</span><p><strong>Actualiza el catálogo</strong><small>Actualiza existentes, incorpora nuevos y deja inactivos los productos ausentes.</small></p></div>
+      </div>
+      <p class="warning-box">Seleccionar el archivo todavía no modifica Productos. Primero vas a ver un resumen completo y podrás cancelar.</p>
+      <div id="productImportIntroMessage" class="form-message hidden" role="alert"></div>
+      <div class="dialog-actions product-import-intro-actions"><button type="button" class="btn secondary" data-close="productImportDialog">Cancelar</button><button id="btnSelectProductImport" type="button" class="btn primary big">Seleccionar archivo</button></div>
+    </section>
+    <section id="productImportReview" class="hidden">
+      <p class="product-import-ready">ARCHIVO LISTO PARA IMPORTAR</p>
+      <p id="productImportSource" class="helper import-source"></p>
+      <div id="productImportLists" class="product-import-lists"></div>
+      <div id="productImportSummary" class="product-import-summary"></div>
+      <div id="productImportIssues" class="form-message hidden" role="alert"></div>
+      <p class="product-import-tax"><strong>Precios:</strong> valor del archivo sin IVA → precio final almacenado con IVA 21%.</p>
+      <div id="productImportPreview" class="bulk-preview empty">Todavía no hay un archivo analizado.</div>
+      <p class="warning-box">Revisá especialmente los productos ausentes: al confirmar quedarán inactivos y con Lista 1 en cero. Las listas que no existan en el archivo no se modificarán.</p>
+      <label class="check-label product-import-confirm"><input id="productImportConfirm" type="checkbox"> Confirmo que revisé el resumen y quiero reemplazar la lista actual.</label>
+      <div class="dialog-actions product-import-actions"><button type="button" class="btn secondary" data-close="productImportDialog">Cancelar</button><button id="btnChooseProductImport" type="button" class="btn secondary">Elegir otro archivo</button><button id="btnApplyProductImport" type="button" class="btn primary big" disabled>Importar lista</button></div>
+    </section>
   </dialog>
 
   <dialog id="orderReuseDialog" class="dialog">
@@ -562,8 +578,8 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=150"></script>
-  <script src="operations-ui.js?v=150"></script>
-  <script src="app.js?v=150"></script>
+  <script src="config.js?v=151"></script>
+  <script src="operations-ui.js?v=151"></script>
+  <script src="app.js?v=151"></script>
 </body>
 </html>
