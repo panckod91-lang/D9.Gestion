@@ -2,7 +2,26 @@
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
-Versión actual: `v0.15.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+Versión actual: `v0.16.0-prod`, conectada al despliegue propio de **D9 Gestión**.
+
+## v0.16.0-prod
+
+- El PDF de Pedidos adopta el formato operativo compacto del generador real de D9 Admin.
+- Antes de generarlo permite elegir si se incluyen importes; la opción comienza desmarcada.
+- Sin importes conserva código, cantidad, descripción, notas, cliente/dirección y resúmenes de Admin, sin IDs técnicos, vendedor ni información monetaria.
+- Con importes mantiene la misma estética y agrega precio histórico, importe de línea, total por cliente y total general.
+- Productos y precios incorpora `Registro`, basado en la hoja `auditoria` existente.
+- Registra una sola actividad confirmada por importación, actualización masiva o modificación individual; analizar o cancelar no genera registros.
+- Conserva el espacio de trabajo de Recibos en dos columnas incorporado en v0.15.2.
+
+Requiere actualizar el frontend y el Apps Script propio de Gestión. No modifica D9 Pedidos, D9 Admin, Worker ni otras Sheets.
+
+## v0.15.2-prod
+
+- Reorganiza Recibos en escritorio como espacio de trabajo de dos columnas: Recibos emitidos a la izquierda y Saldos por cobrar a la derecha.
+- Cada lista conserva su buscador, información y acciones, con altura independiente para evitar que una desplace a la otra.
+- En móvil vuelve a una sola columna y prioriza Saldos por cobrar antes del historial de recibos.
+- Cambio exclusivamente visual: no modifica `app.js`, cálculos, cuenta corriente, creación, impresión ni Apps Script.
 
 ## v0.15.1-prod
 

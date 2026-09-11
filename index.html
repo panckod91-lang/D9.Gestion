@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=151">
+  <link rel="stylesheet" href="styles.css?v=160">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -113,14 +113,18 @@
 
         <section id="view-recibos" class="view">
           <div class="page-head"><div><h2>Recibos</h2><p>Ingresos de pagos realizados después del comprobante.</p></div><button id="btnNewReceipt" class="btn primary">＋ Nuevo recibo</button></div>
-          <section class="panel receipt-debts-panel">
-            <div class="panel-head"><div><h3>Cobrar saldos pendientes</h3><p>Elegí un cliente para registrar su pago.</p></div></div>
-            <div class="filters single-filter"><input id="receiptDebtsSearch" type="search" placeholder="Buscar cliente con deuda"></div>
-            <div id="receiptDebtsList" class="compact-list empty">No hay saldos pendientes.</div>
-          </section>
-          <div class="list-section-head"><div><h3>Recibos emitidos</h3><p>Historial de pagos ya registrados.</p></div></div>
-          <div class="filters single-filter"><input id="receiptsSearch" type="search" placeholder="Buscar por cliente o número de recibo"></div>
-          <div id="receiptsList" class="card-list empty">Todavía no hay recibos.</div>
+          <div class="receipts-workspace">
+            <section class="panel receipts-column receipts-issued-panel">
+              <div class="list-section-head"><div><h3>Recibos emitidos</h3><p>Historial de pagos ya registrados.</p></div></div>
+              <div class="filters single-filter"><input id="receiptsSearch" type="search" placeholder="Buscar por cliente o número de recibo"></div>
+              <div id="receiptsList" class="card-list empty">Todavía no hay recibos.</div>
+            </section>
+            <section class="panel receipt-debts-panel receipts-column receipts-debts-panel">
+              <div class="panel-head"><div><h3>Saldos por cobrar</h3><p>Elegí un cliente para registrar su pago.</p></div></div>
+              <div class="filters single-filter"><input id="receiptDebtsSearch" type="search" placeholder="Buscar cliente con deuda"></div>
+              <div id="receiptDebtsList" class="compact-list empty">No hay saldos pendientes.</div>
+            </section>
+          </div>
         </section>
 
         <section id="view-cheques" class="view">
@@ -136,6 +140,7 @@
             <button id="btnBulkPrices" class="btn secondary" type="button">％ Actualización masiva</button>
             <button id="btnImportProducts" class="btn secondary" type="button">📥 Importar lista</button>
             <button class="btn secondary" type="button" data-go="ofertas">🔥 Ofertas</button>
+            <button id="btnProductLog" class="btn secondary" type="button">🕘 Registro</button>
             <input id="productImportFile" class="hidden" type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
             <span id="productAdminNotice" class="helper">Los cambios se escriben en la Sheet original y quedan auditados.</span>
           </div>
@@ -460,6 +465,26 @@
     </section>
   </dialog>
 
+  <dialog id="productLogDialog" class="dialog wide-dialog product-log-dialog">
+    <div class="dialog-head"><div><small>PRODUCTOS Y PRECIOS</small><h2>Registro de modificaciones</h2></div><button type="button" class="dialog-close" data-close="productLogDialog">×</button></div>
+    <div id="productLogSummary" class="product-log-summary"></div>
+    <section class="product-log-activity">
+      <div class="section-head"><div><h3>Actividad reciente</h3><p>Modificaciones confirmadas desde esta versión.</p></div></div>
+      <div id="productLogList" class="product-log-list empty">Sin actividad registrada.</div>
+    </section>
+    <div class="dialog-actions"><button type="button" class="btn secondary" data-close="productLogDialog">Cerrar</button></div>
+  </dialog>
+
+  <dialog id="ordersPdfDialog" class="dialog orders-pdf-dialog">
+    <form id="ordersPdfForm" method="dialog">
+      <div class="dialog-head"><div><small>PEDIDOS</small><h2>Generar reporte PDF</h2></div><button type="button" class="dialog-close" data-close="ordersPdfDialog">×</button></div>
+      <p class="helper">El formato operativo de D9 Admin es el estándar del reporte.</p>
+      <label class="check-label orders-pdf-option"><input id="ordersPdfAmounts" type="checkbox"> Incluir importes</label>
+      <p class="orders-pdf-help">Desmarcado: código, cantidad, descripción y notas. Marcado: agrega precio unitario, importe y totales.</p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="ordersPdfDialog">Cancelar</button><button type="submit" class="btn primary big">Generar PDF</button></div>
+    </form>
+  </dialog>
+
   <dialog id="orderReuseDialog" class="dialog">
     <div class="dialog-head"><div><small>PEDIDO YA UTILIZADO</small><h2>¿Generar otro comprobante?</h2></div><button type="button" class="dialog-close" data-close="orderReuseDialog">×</button></div>
     <div class="order-reuse-warning">
@@ -578,8 +603,8 @@
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=151"></script>
-  <script src="operations-ui.js?v=151"></script>
-  <script src="app.js?v=151"></script>
+  <script src="config.js?v=160"></script>
+  <script src="operations-ui.js?v=160"></script>
+  <script src="app.js?v=160"></script>
 </body>
 </html>
