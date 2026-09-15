@@ -1,5 +1,13 @@
 # D9 Gestión
 
+## v0.17.0-prod
+
+- Consulta única de Lista de precios accesible desde Productos y precios y Reportes.
+- Filtros combinados de categoría, una o varias marcas y búsqueda de producto.
+- Selección administrativa de Lista 1, Lista 2 y Lista 3.
+- PDF adaptado fielmente desde D9 Pedidos y uso de Web Share con descarga segura como respaldo.
+- Cambio exclusivamente frontend; Apps Script sin modificaciones.
+
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
 
 Versión actual: `v0.16.0-prod`, conectada al despliegue propio de **D9 Gestión**.

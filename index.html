@@ -139,6 +139,7 @@
             <button id="btnNewProduct" class="btn primary" type="button">＋ Nuevo producto</button>
             <button id="btnBulkPrices" class="btn secondary" type="button">％ Actualización masiva</button>
             <button id="btnImportProducts" class="btn secondary" type="button">📥 Importar lista</button>
+            <button class="btn secondary" type="button" data-price-list-open="maestros">📋 Lista de precios</button>
             <button class="btn secondary" type="button" data-go="ofertas">🔥 Ofertas</button>
             <button id="btnProductLog" class="btn secondary" type="button">🕘 Registro</button>
             <input id="productImportFile" class="hidden" type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -146,6 +147,20 @@
           </div>
           <div class="filters"><input id="mastersSearch" placeholder="Buscar código, descripción, categoría o marca"><select id="mastersPriceList"></select></div>
           <div id="mastersList" class="card-list empty">Sin datos sincronizados.</div>
+        </section>
+
+        <section id="view-lista-precios" class="view">
+          <div class="page-head price-list-head"><div><button id="btnBackPriceList" class="report-back" type="button">‹ Volver</button><h2>Lista de precios</h2><p>Consulta por producto, categoría y marca sobre el catálogo vigente.</p></div><div class="row-actions"><button id="btnDownloadPriceListPdf" class="btn secondary" type="button">📄 Descargar PDF</button><button id="btnSharePriceListPdf" class="btn primary" type="button">📤 Compartir por WhatsApp</button></div></div>
+          <section class="panel price-list-panel">
+            <div class="price-list-controls">
+              <label class="price-list-search">Buscar producto<input id="priceListSearch" type="search" placeholder="Nombre, código, categoría o marca" autocomplete="off"></label>
+              <label>Lista<select id="priceListSelect"></select></label>
+              <button id="btnPriceListCategory" class="price-filter-button" type="button"><small>CATEGORÍA</small><strong id="priceListCategoryLabel">Todas las categorías</strong></button>
+              <button id="btnPriceListBrand" class="price-filter-button" type="button"><small>MARCA</small><strong id="priceListBrandLabel">Todas las marcas</strong></button>
+            </div>
+            <p id="priceListSummary" class="list-summary"></p>
+            <div id="priceListProducts" class="price-list-products empty">Sin productos sincronizados.</div>
+          </section>
         </section>
 
         <section id="view-clientes" class="view">
@@ -191,6 +206,7 @@
           <div id="reportsHub" class="report-hub">
             <button type="button" class="report-choice active" data-report-open="sales"><span>📊</span><div><strong>Ventas por vendedor</strong><small>Comprobantes, pagos y totales por período.</small></div><b>›</b></button>
             <button type="button" class="report-choice active" data-report-open="commissions"><span>💰</span><div><strong>Comisiones</strong><small>Remitos, créditos, vendedores y cierres.</small></div><b>›</b></button>
+            <button type="button" class="report-choice active" data-price-list-open="reportes"><span>📋</span><div><strong>Lista de precios</strong><small>Consultar por marca, categoría o lista completa.</small></div><b>›</b></button>
             <button type="button" class="report-choice" disabled><span>💵</span><div><strong>Cobranzas</strong><small>Próximamente</small></div></button>
             <button type="button" class="report-choice" disabled><span>📒</span><div><strong>Cuentas corrientes</strong><small>Próximamente</small></div></button>
             <button type="button" class="report-choice" disabled><span>🏦</span><div><strong>Cheques</strong><small>Próximamente</small></div></button>
@@ -602,9 +618,12 @@
   </dialog>
 
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
+  <dialog id="priceListCategoryDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Categoría</h2></div><button type="button" class="dialog-close" data-close="priceListCategoryDialog">×</button></div><div id="priceListCategoryOptions" class="price-filter-options"></div></dialog>
+  <dialog id="priceListBrandDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Marcas</h2></div><button type="button" class="dialog-close" data-close="priceListBrandDialog">×</button></div><p class="helper">Podés combinar una o varias marcas.</p><div id="priceListBrandOptions" class="price-filter-options"></div><div class="dialog-actions"><button id="btnApplyPriceListBrands" type="button" class="btn primary">Aplicar marcas</button></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=160"></script>
-  <script src="operations-ui.js?v=160"></script>
-  <script src="app.js?v=160"></script>
+  <script src="config.js?v=170"></script>
+  <script src="operations-ui.js?v=170"></script>
+  <script src="price-list.js?v=170"></script>
+  <script src="app.js?v=170"></script>
 </body>
 </html>

@@ -232,8 +232,8 @@ function showView(name, {fromMainNavigation=false}={}) {
   state.currentView=name;
   $$(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
   $$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
-  $("#btnMore").classList.toggle("active",["cheques","maestros","clientes","usuarios","ofertas","publicidad","reportes","config"].includes(name));
-  const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios",clientes:"Clientes",usuarios:"Usuarios",ofertas:"Productos en oferta",publicidad:"Publicidad",reportes:"Reportes",config:"Configuración"};
+  $("#btnMore").classList.toggle("active",["cheques","maestros","lista-precios","clientes","usuarios","ofertas","publicidad","reportes","config"].includes(name));
+  const labels={home:"Gestión",pedidos:"Pedidos",operaciones:"Comprobantes",cuentas:"Cuentas corrientes",recibos:"Recibos",cheques:"Cheques",maestros:"Productos y precios","lista-precios":"Lista de precios",clientes:"Clientes",usuarios:"Usuarios",ofertas:"Productos en oferta",publicidad:"Publicidad",reportes:"Reportes",config:"Configuración"};
   $("#viewTitle").textContent=labels[name]||"Gestión"; window.scrollTo({top:0,behavior:"smooth"});
   renderCurrentView();
 }
@@ -403,7 +403,7 @@ function renderChecks() {
   $("#checksList").className="card-list"; $("#checksList").innerHTML=rows.map(c=>{const due=daysFromToday(c.fecha_vencimiento);return `<article class="data-card"><div><h3>${esc(c.banco||"Cheque")} · ${esc(c.numero||"Sin número")}</h3><p>${esc(c.cliente||"")} · Librador: ${esc(c.librador||"—")}</p><div class="meta"><span class="pill ${due<0?'red':due<=7?'amber':''}">Vence ${formatDate(c.fecha_vencimiento)}</span><span class="pill">${esc(c.estado||"EN_CARTERA")}</span></div></div><div class="card-side"><strong>${money(c.importe)}</strong><div class="row-actions">${!["COBRADO","RECHAZADO","ANULADO"].includes(String(c.estado||"").toUpperCase())?`<button class="mini-btn primary" data-check-status="${esc(c.cheque_id)}" data-status="COBRADO">Cobrado</button><button class="mini-btn danger" data-check-status="${esc(c.cheque_id)}" data-status="RECHAZADO">Rechazado</button>`:""}</div></div></article>`}).join("")||'<div class="empty">No hay cheques con ese filtro.</div>';
 }
 
-const ADMIN_VIEWS=new Set(["cuentas","cheques","maestros","clientes","usuarios","ofertas","publicidad","reportes","config"]);
+const ADMIN_VIEWS=new Set(["cuentas","cheques","maestros","lista-precios","clientes","usuarios","ofertas","publicidad","reportes","config"]);
 function gestionRole(value){
   const role=normalize(value).replace(/\s+/g,"_");
   if(["super_admin","superadmin"].includes(role))return "super_admin";
@@ -420,6 +420,7 @@ function applyPermissionsUI(){
   document.body.classList.toggle("role-issuer",!isAdmin()&&canIssueDocuments());
   $$("[data-view]").forEach(button=>{if(ADMIN_VIEWS.has(button.dataset.view))button.classList.toggle("permission-hidden",!isAdmin())});
   $$("[data-go]").forEach(button=>{if(ADMIN_VIEWS.has(button.dataset.go))button.classList.toggle("permission-hidden",!isAdmin())});
+  $$("[data-price-list-open]").forEach(button=>button.classList.toggle("permission-hidden",!isAdmin()));
   $$("[data-view=\"recibos\"],[data-go=\"recibos\"]").forEach(button=>button.classList.toggle("permission-hidden",!canIssueDocuments()));
   $("#btnMore")?.classList.toggle("permission-hidden",!isAdmin());
   $("#btnCreateOperationClient")?.classList.toggle("permission-hidden",!isAdmin());
@@ -948,7 +949,7 @@ async function saveUser(event){
 function renderReports(){if(state.currentReport)openReport(state.currentReport);else showReportsHub()}
 function showReportsHub(){state.currentReport="";$("#reportsHub").classList.remove("hidden");$$(".report-detail").forEach(view=>view.classList.add("hidden"))}
 function openReport(kind){state.currentReport=kind;$("#reportsHub").classList.add("hidden");$$(".report-detail").forEach(view=>view.classList.add("hidden"));const view=$(kind==="sales"?"#salesReportView":"#commissionReportView");view.classList.remove("hidden");if(kind==="sales")$("#salesReportResults").classList.add("hidden");else{$("#commissionReportResults").classList.add("hidden");renderCommissionClosures()}window.scrollTo({top:0,behavior:"smooth"})}
-function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,clientes:renderClients,usuarios:renderUsers,ofertas:renderOffers,publicidad:renderPublicidad,reportes:renderReports}[state.currentView]||(()=>{}))(); }
+function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,"lista-precios":renderPriceList,clientes:renderClients,usuarios:renderUsers,ofertas:renderOffers,publicidad:renderPublicidad,reportes:renderReports}[state.currentView]||(()=>{}))(); }
 function renderAll() { renderHome(); if(state.currentView!=="home")renderCurrentView(); }
 
 function populateSelectors() {
@@ -1346,6 +1347,7 @@ async function annulOperation(id){if(!isAdmin())return toast("Sólo administraci
 async function updateCheck(id,status){if(!isAdmin())return toast("Sólo administración puede cambiar cheques.","error");if(!confirm(`¿Marcar el cheque como ${status.toLowerCase()}?`))return;try{await apiPost("update_cheque_status",{cheque_id:id,estado:status});toast("Cheque actualizado");await loadAll()}catch(err){toast(err.message,"error")}}
 
 function bindEvents(){
+  bindPriceListEvents();
   initOperationsUI();
   $("#btnConfirmOrderReuse").addEventListener("click",confirmOrderReuse);
   $("#orderReuseDialog").addEventListener("close",()=>{state.pendingOrderReuseId=""});
