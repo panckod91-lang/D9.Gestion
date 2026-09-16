@@ -1348,6 +1348,7 @@ async function updateCheck(id,status){if(!isAdmin())return toast("Sólo administ
 
 function bindEvents(){
   bindPriceListEvents();
+  bindOffersPdfEvents();
   initOperationsUI();
   $("#btnConfirmOrderReuse").addEventListener("click",confirmOrderReuse);
   $("#orderReuseDialog").addEventListener("close",()=>{state.pendingOrderReuseId=""});

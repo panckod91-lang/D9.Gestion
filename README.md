@@ -1,5 +1,14 @@
 # D9 Gestión
 
+## v0.17.1-prod
+
+- PDF comercial independiente para Ofertas vigentes.
+- Precio habitual opcional; precio de oferta siempre protagonista.
+- Una sola generación para abrir/imprimir, descargar o compartir.
+- Mensaje de WhatsApp editable antes de entregar texto y PDF a Web Share.
+- Fallback con descarga y apertura de WhatsApp cuando no se pueden compartir archivos.
+- Lista de precios v0.17.0 sin modificaciones funcionales.
+
 ## v0.17.0-prod
 
 - Consulta única de Lista de precios accesible desde Productos y precios y Reportes.

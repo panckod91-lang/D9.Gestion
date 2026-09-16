@@ -186,7 +186,7 @@
         </section>
 
         <section id="view-ofertas" class="view">
-          <div class="page-head"><div><h2>Productos en oferta</h2><p>Precio temporal sin modificar las listas habituales.</p></div><button id="btnNewOffer" class="btn primary" type="button">＋ Nueva oferta</button></div>
+          <div class="page-head offers-page-head"><div><h2>Productos en oferta</h2><p>Precio temporal sin modificar las listas habituales.</p></div><div class="row-actions"><button id="btnOffersPdf" class="btn secondary" type="button">📄 Generar PDF</button><button id="btnNewOffer" class="btn primary" type="button">＋ Nueva oferta</button></div></div>
           <div id="offerAdminNotice" class="admin-toolbar"><span class="helper">Las ofertas se guardan en la Sheet central D9_pedidos.</span></div>
           <div class="filters"><input id="offersSearch" type="search" placeholder="Buscar código, producto, categoría o marca"><select id="offersStatus"><option value="current">Vigentes hoy</option><option value="all">Todas</option><option value="active">Activas, incluidas futuras</option><option value="inactive">Desactivadas</option></select></div>
           <p id="offersSummary" class="list-summary"></p>
@@ -566,6 +566,38 @@
     </form>
   </dialog>
 
+  <dialog id="offersPdfDialog" class="dialog offers-pdf-dialog">
+    <form id="offersPdfForm" method="dialog">
+      <div class="dialog-head"><div><small>OFERTAS</small><h2>Generar lista de ofertas</h2></div><button type="button" class="dialog-close" data-close="offersPdfDialog">×</button></div>
+      <p class="offers-pdf-intro">Se incluirán únicamente las ofertas vigentes hoy. El mismo archivo sirve para imprimir, descargar o compartir.</p>
+      <label class="check-label offers-pdf-option"><input id="offersPdfIncludeNormal" type="checkbox"> Incluir precio habitual</label>
+      <p class="offers-pdf-help">Por defecto se mostrará solamente el precio de oferta. El precio habitual corresponde a Lista 1.</p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="offersPdfDialog">Cancelar</button><button id="btnGenerateOffersPdf" type="submit" class="btn primary big">Generar PDF</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="offersPdfActionsDialog" class="dialog offers-pdf-dialog">
+    <div class="dialog-head"><div><small>PDF GENERADO</small><h2>Lista de ofertas lista</h2></div><button type="button" class="dialog-close" data-close="offersPdfActionsDialog">×</button></div>
+    <div class="offers-pdf-ready"><span>✓</span><div><strong id="offersPdfReadyTitle">Ofertas vigentes</strong><small id="offersPdfReadyDetail"></small></div></div>
+    <div class="offers-pdf-actions"><button id="btnOpenOffersPdf" type="button" class="btn secondary">🖨️ Abrir / Imprimir</button><button id="btnDownloadOffersPdf" type="button" class="btn secondary">⬇️ Descargar</button><button id="btnShareOffersPdf" type="button" class="btn primary">📤 Compartir por WhatsApp</button></div>
+  </dialog>
+
+  <dialog id="offersShareDialog" class="dialog offers-share-dialog">
+    <form id="offersShareForm" method="dialog">
+      <div class="dialog-head"><div><small>OFERTAS</small><h2>Compartir ofertas</h2></div><button type="button" class="dialog-close" data-close="offersShareDialog">×</button></div>
+      <label class="offers-share-message">Mensaje<textarea id="offersShareText" rows="8">🔥 ¡Ofertas D9!
+
+Te compartimos nuestras ofertas vigentes.
+Encontrá precios especiales en productos seleccionados.
+
+📎 Mirá la lista completa en el archivo adjunto.
+
+Distribuidora D9</textarea></label>
+      <p class="offers-pdf-help">D9 entregará el texto y el PDF al selector del dispositivo. Elegí WhatsApp cuando esté disponible.</p>
+      <div class="dialog-actions"><button type="button" class="btn secondary" data-close="offersShareDialog">Cancelar</button><button type="submit" class="btn primary big">Compartir</button></div>
+    </form>
+  </dialog>
+
   <dialog id="adDialog" class="dialog ad-dialog">
     <form id="adForm" method="dialog">
       <div class="dialog-head"><div><small>PUBLICIDAD</small><h2 id="adDialogTitle">Nuevo banner</h2></div><button type="button" class="dialog-close" data-close="adDialog">×</button></div>
@@ -621,9 +653,10 @@
   <dialog id="priceListCategoryDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Categoría</h2></div><button type="button" class="dialog-close" data-close="priceListCategoryDialog">×</button></div><div id="priceListCategoryOptions" class="price-filter-options"></div></dialog>
   <dialog id="priceListBrandDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Marcas</h2></div><button type="button" class="dialog-close" data-close="priceListBrandDialog">×</button></div><p class="helper">Podés combinar una o varias marcas.</p><div id="priceListBrandOptions" class="price-filter-options"></div><div class="dialog-actions"><button id="btnApplyPriceListBrands" type="button" class="btn primary">Aplicar marcas</button></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=170"></script>
-  <script src="operations-ui.js?v=170"></script>
-  <script src="price-list.js?v=170"></script>
-  <script src="app.js?v=170"></script>
+  <script src="config.js?v=171"></script>
+  <script src="operations-ui.js?v=171"></script>
+  <script src="price-list.js?v=171"></script>
+  <script src="offers-pdf.js?v=171"></script>
+  <script src="app.js?v=171"></script>
 </body>
 </html>

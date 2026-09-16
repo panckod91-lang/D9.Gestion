@@ -1,5 +1,5 @@
-const CACHE = "d9-gestion-v0170-prod-price-list";
-const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./operations-ui.js", "./price-list.js", "./client-import.js", "./config.js", "./manifest.json", "./vendor/pdf.min.mjs", "./vendor/pdf.worker.min.mjs", "./icons/logo_d9.png", "./icons/icon-192.png", "./icons/icon-512.png"];
+const CACHE = "d9-gestion-v0171-prod-offers-pdf";
+const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./operations-ui.js", "./price-list.js", "./offers-pdf.js", "./client-import.js", "./config.js", "./manifest.json", "./vendor/pdf.min.mjs", "./vendor/pdf.worker.min.mjs", "./icons/logo_d9.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", event => {
