@@ -1,5 +1,9 @@
 # D9 Gestión
 
+## v0.17.2-prod
+
+Corrección localizada al compartir el PDF de Ofertas: la confirmación toma el valor actual del mensaje editable y lo entrega junto con el archivo en una única llamada a Web Share. Si el mensaje queda vacío, comparte solamente el PDF.
+
 ## v0.17.1-prod
 
 - PDF comercial independiente para Ofertas vigentes.

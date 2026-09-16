@@ -75,10 +75,10 @@ function openOffersPdfForPrint(){
 function downloadOffersPdf(){if(requireOffersPdf()){downloadBlob(offersPdfResult.blob,offersPdfResult.filename);toast("PDF de ofertas descargado.")}}
 function openOffersShare(){if(!requireOffersPdf())return;$("#offersShareText").value=OFFERS_SHARE_DEFAULT;$("#offersShareDialog").showModal();setTimeout(()=>$("#offersShareText").focus(),40)}
 async function shareOffersPdf(event){
-  event.preventDefault();if(!requireOffersPdf())return;const text=$("#offersShareText").value,$form=event.currentTarget,button=$form.querySelector('button[type="submit"]');button.disabled=true;button.textContent="Compartiendo…";
+  event.preventDefault();if(!requireOffersPdf())return;const textoEditado=document.getElementById("offersShareText").value,$form=event.currentTarget,button=$form.querySelector('button[type="submit"]');button.disabled=true;button.textContent="Compartiendo…";
   try{
-    if(typeof File!=="undefined"){const file=new File([offersPdfResult.blob],offersPdfResult.filename,{type:"application/pdf"});if(navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({title:"Ofertas D9",text,files:[file]});$("#offersShareDialog").close();toast("Archivo entregado al selector para compartir.");return}}
-    downloadBlob(offersPdfResult.blob,offersPdfResult.filename);$("#offersShareDialog").close();window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,"_blank");toast("PDF descargado. Adjuntalo manualmente desde Descargas.");
+    if(typeof File!=="undefined"){const pdfFile=new File([offersPdfResult.blob],offersPdfResult.filename,{type:"application/pdf"});if(navigator.canShare?.({files:[pdfFile]})&&navigator.share){const shareData={files:[pdfFile]};if(textoEditado!=="")shareData.text=textoEditado;await navigator.share(shareData);$("#offersShareDialog").close();toast("Archivo entregado al selector para compartir.");return}}
+    downloadBlob(offersPdfResult.blob,offersPdfResult.filename);$("#offersShareDialog").close();toast("PDF descargado. Compartilo manualmente desde Descargas.");
   }catch(error){if(error?.name!=="AbortError"){console.error("No se pudo compartir el PDF de ofertas",error);toast("No se pudo abrir el mecanismo para compartir.","error")}}
   finally{button.disabled=false;button.textContent="Compartir"}
 }
