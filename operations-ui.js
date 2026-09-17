@@ -40,7 +40,7 @@ function docsFilterRows(operations,filter,today=docsToday()){
     const withBalance=!annul&&!credit&&numeric(op.saldo)>.005;
     if(filter.balance==="with"&&!withBalance)return false;
     if(filter.balance==="without"&&(annul||credit||withBalance))return false;
-    return matchesSearch([op.numero,formatOperationNumber(op.numero),op.tipo,op.cliente,op.origen_pedido_id,op.vendedor,operationSellerInfo(op).nombre],filter.query);
+    return matchesSearch([op.numero,formatOperationNumber(op.numero),op.tipo,op.cliente,op.origen_pedido_id,op.origen_venta_id,op.vendedor,operationSellerInfo(op).nombre],filter.query);
   }).sort((a,b)=>String(b.fecha||"").slice(0,10).localeCompare(String(a.fecha||"").slice(0,10))||String(b.created_at||"").localeCompare(String(a.created_at||""))||String(b.operacion_id).localeCompare(String(a.operacion_id)));
 }
 function docsFillOptions(selector,rows,emptyLabel){
@@ -81,7 +81,7 @@ function docsStatus(op){
 function docsLinkedCredits(op){return state.gestion.operaciones.filter(x=>String(x.referencia_operacion_id||"")===String(op.operacion_id)&&String(x.tipo).toUpperCase()==="NOTA_CREDITO")}
 function docsRow(op){
   const credit=String(op.tipo).toUpperCase()==="NOTA_CREDITO",seller=operationSellerInfo(op),linked=docsLinkedCredits(op),id=esc(op.operacion_id);
-  const relation=op.referencia_numero?`Sobre ${formatOperationNumber(op.referencia_numero)}`:linked.length?`${linked.length} NC vinculada${linked.length===1?"":"s"}`:op.origen_pedido_id?"Desde pedido":"Carga manual";
+  const relation=op.referencia_numero?`Sobre ${formatOperationNumber(op.referencia_numero)}`:linked.length?`${linked.length} NC vinculada${linked.length===1?"":"s"}`:op.origen_pedido_id?"Desde pedido":op.origen_venta_id?"Desde venta":"Carga manual";
   return `<article class="docs-row ${isAnnulled(op.estado)?"docs-annulled":""}">
     <div class="docs-identity"><small>${esc(operationTypeLabel(op.tipo))}</small><strong>${esc(formatOperationNumber(op.numero))}</strong>${credit?`<span class="docs-credit-kind">${esc(docsCreditLabel(op))}</span>`:""}</div>
     <div class="docs-customer"><strong>${esc(op.cliente||"Sin cliente")}</strong><small>${formatDate(op.fecha)} · ${esc(seller.nombre)}</small><small class="docs-relation">${esc(relation)}</small></div>
@@ -151,6 +151,7 @@ function showOperationsDetail(id,autoPrint=false,actionsOnly=false,related=false
   if(credit){fields.push(["Tipo de crédito",docsCreditLabel(op)]);if(op.credito_concepto)fields.push(["Motivo",op.credito_concepto])}
   else if(!isAnnulled(op.estado))fields.push(["Saldo pendiente del comprobante",money(op.saldo)]);
   if(op.origen_pedido_id)fields.push(["Pedido de origen",op.origen_pedido_id]);
+  if(op.origen_venta_id)fields.push(["Venta de origen",op.origen_venta_id]);
   const back=operationsUI.trail.length>1?'<button type="button" class="mini-btn docs-back" data-doc-back>← Volver al comprobante anterior</button>':"";
   const body=back+detailHeader(fields)+(actionsOnly?"":itemsTable(operationItems(id)))+(op.observaciones?`<p>${esc(op.observaciones)}</p>`:"")+docsRelationsHtml(op);
   const actions=`<button type="button" class="btn primary" data-operation-print="${esc(id)}">Imprimir media A4</button>${docsActionsHtml(op)}`;

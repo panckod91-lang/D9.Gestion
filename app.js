@@ -33,7 +33,7 @@ const state = {
   token: localStorage.getItem(STORAGE.token) || "",
   user: JSON.parse(localStorage.getItem(STORAGE.user) || "null"),
   permissions: {source_admin:false,gestion_admin:false,super_admin:false,can_issue_documents:false,source_writes_enabled:false},
-  source: {clientes:[],clientes_admin:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],usuarios_admin:[],pedidos:[],ofertas:[],publicidad:[]},
+  source: {clientes:[],clientes_admin:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],usuarios_admin:[],pedidos:[],ventas:[],ofertas:[],publicidad:[]},
   gestion: {operaciones:[],items:[],recibos:[],pagos:[],cheques:[],movimientos:[],comisiones_reglas:[],comisiones_cierres:[],comisiones_detalle:[],productos_log:[],config:{}},
   currentView:"home",
   draftItems:[],
@@ -44,6 +44,7 @@ const state = {
   productSearchResults:[],
   productSearchIndex:0,
   currentOrder:null,
+  currentSale:null,
   currentCreditOperation:null,
   currentCreditMode:"",
   currentReport:"",
@@ -51,6 +52,7 @@ const state = {
   cacheLoaded:false,
   ordersRangeActive:false,
   ordersRevision:"",
+  salesRevision:"",
   bulkPriceChanges:[],
   productImport:null,
   sellerSuggestions:{},
@@ -59,7 +61,7 @@ const state = {
   clientImport:null,
   clientImportDecisions:{},
   clientEditorOrigin:"",
-  pendingOrderReuseId:""
+  pendingSourceReuse:null
 };
 
 let ordersPollTimer=null;
@@ -165,9 +167,10 @@ function applyBootstrap(data) {
   if(data.user){state.user=data.user;localStorage.setItem(STORAGE.user,JSON.stringify(state.user));showApp()}
   state.permissions={source_admin:!!data.permissions?.source_admin,gestion_admin:!!data.permissions?.gestion_admin,super_admin:!!data.permissions?.super_admin,can_issue_documents:!!data.permissions?.can_issue_documents,source_writes_enabled:!!data.permissions?.source_writes_enabled};
   state.source={
-    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], usuarios_admin:data.source?.usuarios_admin||data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ofertas:data.source?.ofertas||[], publicidad:data.source?.publicidad||[]
+    clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], usuarios_admin:data.source?.usuarios_admin||data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ventas:data.source?.ventas||state.source.ventas||[], ofertas:data.source?.ofertas||[], publicidad:data.source?.publicidad||[]
   };
   if(data.source?.pedidos_revision)state.ordersRevision=String(data.source.pedidos_revision);
+  if(data.source?.ventas_revision)state.salesRevision=String(data.source.ventas_revision);
   state.gestion={
     operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], comisiones_reglas:data.gestion?.comisiones_reglas||[], comisiones_cierres:data.gestion?.comisiones_cierres||[], comisiones_detalle:data.gestion?.comisiones_detalle||[], productos_log:data.gestion?.productos_log||[], config:data.gestion?.config||{}
   };
@@ -185,22 +188,22 @@ function startOrderPolling(){
   ordersPollTimer=setInterval(()=>void pollOrders(),ORDER_POLL_MS);
 }
 function canPollOrders(){
-  return !!state.token&&document.visibilityState==="visible"&&!$("#app").classList.contains("hidden")&&!state.ordersRangeActive;
+  return !!state.token&&document.visibilityState==="visible"&&!$("#app").classList.contains("hidden");
 }
 async function pollOrders(){
   if(ordersPollBusy||!canPollOrders())return;
   ordersPollBusy=true;
   try{
-    const check=await apiRead("pedidos_revision"),revision=String(check.revision||"");
-    if(!revision||revision===state.ordersRevision)return;
-    const previousIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||"")));
-    const data=await apiRead("pedidos");
-    state.source.pedidos=data.pedidos||[];
-    state.ordersRevision=String(data.revision||revision);
-    const newOrders=state.source.pedidos.filter(order=>!previousIds.has(String(order.pedido_id||"")));
-    populateSelectors();renderHome();if(state.currentView==="pedidos")renderOrders();saveCurrentCache();
+    const check=await apiRead("actividad_revision"),ordersRevision=String(check.pedidos_revision||""),salesRevision=String(check.ventas_revision||"");
+    const ordersChanged=!state.ordersRangeActive&&!!ordersRevision&&ordersRevision!==state.ordersRevision,salesChanged=!!salesRevision&&salesRevision!==state.salesRevision;if(!ordersChanged&&!salesChanged)return;
+    const previousOrderIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||""))),previousSaleIds=new Set(state.source.ventas.map(sale=>String(sale.venta_id||"")));
+    const [ordersData,salesData]=await Promise.all([ordersChanged?apiRead("pedidos"):null,salesChanged?apiRead("ventas"):null]);
+    if(ordersData){state.source.pedidos=ordersData.pedidos||[];state.ordersRevision=String(ordersData.revision||ordersRevision)}
+    if(salesData){state.source.ventas=salesData.ventas||[];state.salesRevision=String(salesData.revision||salesRevision)}
+    const newOrders=state.source.pedidos.filter(order=>!previousOrderIds.has(String(order.pedido_id||""))),newSales=state.source.ventas.filter(sale=>!previousSaleIds.has(String(sale.venta_id||"")));
+    populateSelectors();renderHome();if(state.currentView==="pedidos"&&ordersChanged)renderOrders();saveCurrentCache();
     const time=new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
-    setSync(newOrders.length?`${newOrders.length===1?"Pedido nuevo":"Pedidos nuevos"} · ${time}`:`Pedidos actualizados ${time}`);
+    const news=[];if(newOrders.length)news.push(`${newOrders.length} pedido${newOrders.length===1?"":"s"}`);if(newSales.length)news.push(`${newSales.length} venta${newSales.length===1?"":"s"}`);setSync(news.length?`${news.join(" · ")} nuevo${newOrders.length+newSales.length===1?"":"s"} · ${time}`:`Actividad actualizada ${time}`);
   }catch(err){
     if(/sesión|token|autoriz/i.test(err.message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
   }finally{ordersPollBusy=false}
@@ -294,6 +297,7 @@ function renderHome() {
   $("#kpiDebt").textContent=money(accounts.reduce((s,a)=>s+Math.max(0,a.saldo),0)); $("#kpiChecks").textContent=checks.length;
   $("#homeOrders").className="compact-list"; $("#homeOrders").innerHTML=orders.slice(0,6).map(o=>compactOrder(o)).join("")||'<div class="empty">No hay pedidos hoy.</div>';
   $("#homeDebts").className="compact-list"; $("#homeDebts").innerHTML=accounts.filter(a=>a.saldo>0.005).slice(0,6).map(a=>`<button type="button" class="compact-item compact-action" data-account-receipt="${esc(a.cliente_id)}"><div><strong>${esc(a.cliente)}</strong><small>${a.movimientos.length} movimientos · ingresar recibo</small></div><b>${money(a.saldo)}</b></button>`).join("")||'<div class="empty">No hay saldos pendientes.</div>';
+  const sales=[...state.source.ventas].sort((a,b)=>saleTimestamp(b)-saleTimestamp(a));$("#homeSales").className="compact-list";$("#homeSales").innerHTML=sales.map(compactSale).join("")||'<div class="empty">No hay ventas recientes.</div>';
 }
 function orderSourceOperations(order){return [...state.gestion.operaciones].filter(operation=>String(operation.origen_pedido_id||"")===String(order?.pedido_id||"")).sort((a,b)=>String(b.created_at||b.fecha||"").localeCompare(String(a.created_at||a.fecha||"")))}
 function orderUsedLabel(operation){return `${operationTypeLabel(operation.tipo)} ${formatOperationNumber(operation.numero)}`}
@@ -308,15 +312,23 @@ function orderActionButtons(order,quick=false){
 function requestOrderImport(orderId){
   const order=state.source.pedidos.find(item=>String(item.pedido_id)===String(orderId));if(!order)return toast("El pedido ya no está disponible.","error");
   const used=orderSourceOperations(order);if(!used.length)return openOperation(order,true);
-  state.pendingOrderReuseId=String(order.pedido_id);$("#orderReuseTitle").textContent=`El pedido ${order.pedido_id} ya fue utilizado.`;
+  state.pendingSourceReuse={type:"PEDIDO",id:String(order.pedido_id)};$("#orderReuseEyebrow").textContent="PEDIDO YA UTILIZADO";$("#orderReuseTitle").textContent=`El pedido ${order.pedido_id} ya fue utilizado.`;
   $("#orderReuseDetail").textContent=`Comprobante${used.length===1?"":"s"} generado${used.length===1?"":"s"}: ${used.map(orderUsedLabel).join(", ")}.`;
   $("#orderReuseDialog").showModal();
 }
 function confirmOrderReuse(){
-  const id=state.pendingOrderReuseId,order=state.source.pedidos.find(item=>String(item.pedido_id)===String(id));state.pendingOrderReuseId="";$("#orderReuseDialog").close();
-  if(!order)return toast("El pedido ya no está disponible.","error");openOperation(order,true);
+  const pending=state.pendingSourceReuse;state.pendingSourceReuse=null;$("#orderReuseDialog").close();if(!pending)return;
+  if(pending.type==="VENTA"){const sale=state.source.ventas.find(item=>String(item.venta_id)===String(pending.id));if(!sale)return toast("La venta ya no está disponible.","error");openOperation(null,true,sale);return}
+  const order=state.source.pedidos.find(item=>String(item.pedido_id)===String(pending.id));if(!order)return toast("El pedido ya no está disponible.","error");openOperation(order,true);
 }
 function compactOrder(o) { return `<div class="compact-item"><div><strong>${esc(o.cliente||"Sin cliente")}</strong><small>${esc(o.fecha||"")} · ${esc(o.vendedor||"")}</small></div><div class="row-actions"><b>${money(o.total||o.total_pedido)}</b>${orderActionButtons(o,true)}</div></div>`; }
+
+function saleTimestamp(sale){const raw=String(sale?.fecha||"").trim(),local=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);if(local)return new Date(Number(local[3]),Number(local[2])-1,Number(local[1]),Number(local[4]||0),Number(local[5]||0),Number(local[6]||0)).getTime();const parsed=Date.parse(raw);return Number.isFinite(parsed)?parsed:0}
+function saleSourceOperations(sale){return [...state.gestion.operaciones].filter(operation=>String(operation.origen_venta_id||"")===String(sale?.venta_id||"")).sort((a,b)=>String(b.created_at||b.fecha||"").localeCompare(String(a.created_at||a.fecha||"")))}
+function saleActionButtons(sale){if(!canIssueDocuments())return `<button type="button" class="mini-btn" data-sale-print="${esc(sale.venta_id)}">Imprimir</button>`;const used=saleSourceOperations(sale);return `<button type="button" class="mini-btn" data-sale-print="${esc(sale.venta_id)}">Imprimir</button>${used.length?`<button type="button" class="mini-btn order-used" data-operation-detail="${esc(used[0].operacion_id)}">Ya usado: ${esc(orderUsedLabel(used[0]))}${used.length>1?` +${used.length-1}`:""}</button><button type="button" class="mini-btn warning" data-sale-import="${esc(sale.venta_id)}">Generar otro</button>`:`<button type="button" class="mini-btn primary" data-sale-import="${esc(sale.venta_id)}">Crear comprobante</button>`}`}
+function compactSale(sale){return `<div class="compact-item home-sale-item"><div><strong>${esc(sale.cliente||"Sin cliente")}</strong><small>${esc(sale.fecha||"")} · ${esc(sale.usuario||"Sin usuario")}</small></div><div class="home-sale-total"><b>${money(sale.total_venta)}</b><div class="row-actions">${saleActionButtons(sale)}</div></div></div>`}
+function requestSaleImport(saleId){const sale=state.source.ventas.find(item=>String(item.venta_id)===String(saleId));if(!sale)return toast("La venta ya no está disponible.","error");const used=saleSourceOperations(sale);if(!used.length)return openOperation(null,true,sale);state.pendingSourceReuse={type:"VENTA",id:String(sale.venta_id)};$("#orderReuseEyebrow").textContent="VENTA YA UTILIZADA";$("#orderReuseTitle").textContent=`La venta ${sale.venta_id} ya fue utilizada.`;$("#orderReuseDetail").textContent=`Comprobante${used.length===1?"":"s"} generado${used.length===1?"":"s"}: ${used.map(orderUsedLabel).join(", ")}.`;$("#orderReuseDialog").showModal()}
+function printSale(saleId){const sale=state.source.ventas.find(item=>String(item.venta_id)===String(saleId));if(!sale)return toast("La venta ya no está disponible.","error");const rows=(sale.items||[]).map(item=>`<tr><td>${esc(item.id_producto||"")}</td><td>${esc(item.nombre||"")}</td><td>${number(item.cantidad)}</td><td>${money(item.precio_unitario)}</td><td>${money(item.subtotal)}</td></tr>`).join("");const body=`<div class="head"><div><h1>${esc(state.gestion.config.empresa_nombre||"Distribuidora D9")}</h1><p>Venta interna · comprobante no fiscal</p></div><div class="doc"><strong>VENTA</strong><p>${esc(sale.venta_id)}</p></div></div><div class="meta"><div><span>Fecha</span><b>${esc(sale.fecha||"")}</b></div><div><span>Cliente</span><b>${esc(sale.cliente||"")}</b></div><div><span>Vendedor / usuario</span><b>${esc(sale.usuario||"")}</b></div>${sale.direccion?`<div><span>Dirección</span><b>${esc(sale.direccion)}</b></div>`:""}</div><table><thead><tr><th>Código</th><th>Producto</th><th>Cant.</th><th>P. unit.</th><th>Importe</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div class="grand"><span>Total</span><b>${money(sale.total_venta)}</b></div></div><div class="foot">Venta registrada en D9 Pedidos. Este documento no es una factura fiscal.</div>`;printWindow(`Venta ${sale.venta_id}`,body,"A5")}
 
 function filteredOrders(){
   const q=$("#ordersSearch").value.trim(),from=$("#ordersFrom").value,to=$("#ordersTo").value,seller=$("#ordersSeller").value,status=$("#ordersStatus").value;
@@ -426,7 +438,7 @@ function applyPermissionsUI(){
   $("#btnCreateOperationClient")?.classList.toggle("permission-hidden",!isAdmin());
   ["#btnNewOperation","#btnNewOperation2"].forEach(selector=>$(selector)?.classList.toggle("permission-hidden",!canIssueDocuments()));
 }
-function sellers(){return [...state.source.usuarios].filter(user=>user.id&&user.nombre&&normalize(user.rol)==="vendedor").sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
+function sellers(){return [...state.source.usuarios].filter(user=>user.id&&user.nombre&&["vendedor","mostrador"].includes(normalize(user.rol))).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),"es"))}
 function sellerById(id){return sellers().find(user=>String(user.id)===String(id))}
 function sellerLabel(id,fallback=""){return sellerById(id)?.nombre||fallback||"Sin vendedor"}
 function sellerOptions(value="",allLabel=""){
@@ -997,7 +1009,7 @@ function selectOperationClient(clientId){
   $("#opClient").value=client.id;$("#opClientSearch").value="";$("#opClientSearchBox").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");setOperationClientActionsVisible(false);
   $("#opClientSelectedName").textContent=client.nombre;$("#opClientSelectedMeta").textContent=client._occasional?"Cliente ocasional anterior · conserva su cuenta corriente":`Código ${client.id}${client.ciudad?` · ${client.ciudad}`:""} · ${priceListLabel(state.operationPriceList)}`;$("#opClientSelected").classList.remove("hidden");
   const assignedSeller=sellerById(client.vendedor_id)||sellers().find(user=>normalize(user.nombre)===normalize(client.vendedor));
-  if(!state.currentOrder&&!state.currentCreditOperation&&!state.currentCreditMode&&!$("#opSeller").disabled&&assignedSeller)$("#opSeller").value=String(assignedSeller.id);
+  if(!state.currentOrder&&!state.currentSale&&!state.currentCreditOperation&&!state.currentCreditMode&&!$("#opSeller").disabled&&assignedSeller)$("#opSeller").value=String(assignedSeller.id);
   state.clientSearchResults=[];state.clientSearchIndex=0;$("#opClientResults").innerHTML="";$("#opClientResults").classList.add("hidden");
 }
 
@@ -1115,17 +1127,18 @@ function confirmProductQuantity(event){
   $("#productQuantityDialog").close();commitQuickProduct(product,quantity);
 }
 
-function openOperation(order=null,allowReuse=false) {
+function openOperation(order=null,allowReuse=false,sale=null) {
   if(!canIssueDocuments())return toast("Tu usuario puede consultar, pero no emitir comprobantes.","error");
   if(order&&!allowReuse&&orderSourceOperations(order).length)return requestOrderImport(order.pedido_id);
-  state.currentOrder=order;state.currentCreditOperation=null;state.currentCreditMode="";state.operationPriceList="lista_1"; state.draftItems=(order?.items||[]).map(i=>({id_producto:i.id_producto||i.id, nombre:i.nombre||i.detalle, cantidad:numeric(i.cantidad||i.total), precio:numeric(i.precio), descuento_pct:0}));
+  if(sale&&!allowReuse&&saleSourceOperations(sale).length)return requestSaleImport(sale.venta_id);
+  const sourceDocument=order||sale;state.currentOrder=order;state.currentSale=sale;state.currentCreditOperation=null;state.currentCreditMode="";state.operationPriceList="lista_1"; state.draftItems=(sourceDocument?.items||[]).map(i=>({id_producto:i.id_producto||i.id, nombre:i.nombre||i.detalle, cantidad:numeric(i.cantidad||i.total), precio:numeric(i.precio_unitario||i.precio), descuento_pct:0}));
   state.clientSearchResults=[];state.clientSearchIndex=0;state.occasionalClientId="";state.autoPaidAmount=false;state.productSearchResults=[];state.productSearchIndex=0;
-  $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||"";$("#opReferenceOperation").value=""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");$("#creditNoteBanner").classList.add("hidden");$("#financialCreditFields").classList.add("hidden");$("#operationProductsSection").classList.remove("hidden");$("#opSellerField").classList.remove("hidden");$("#opDiscount").closest("label").classList.remove("hidden");$("#opType").disabled=false;$("#opDiscount").disabled=false;$("#btnChangeOperationClient").classList.remove("hidden");$$("[data-sale-payment]").forEach(el=>el.classList.remove("hidden"));$("#operationDialog .product-quick-add").classList.remove("hidden");
-  const orderSeller=sellerById(order?.vendedor_id)||sellers().find(user=>normalize(user.nombre)===normalize(order?.vendedor)),sessionSeller=sellerById(state.user?.id),selectedSeller=orderSeller||sessionSeller;
-  $("#opSeller").innerHTML=operationSellerOptions(selectedSeller?.id||"");$("#opSeller").value=selectedSeller?.id||"";$("#opSeller").disabled=!!orderSeller||!canIssueDocuments();
+  $("#operationForm").reset(); $("#opDate").value=todayISO(); $("#opSourceOrder").value=order?.pedido_id||"";$("#opSourceSale").value=sale?.venta_id||"";$("#opReferenceOperation").value=""; $("#operationDialogTitle").textContent=order?`Desde pedido ${order.pedido_id}`:sale?`Desde venta ${sale.venta_id}`:"Crear desde cero";$("#opPaidAmount").readOnly=false;$("#opMixedFields").classList.add("hidden");$("#opCheckFields").classList.add("hidden");$("#creditNoteBanner").classList.add("hidden");$("#financialCreditFields").classList.add("hidden");$("#operationProductsSection").classList.remove("hidden");$("#opSellerField").classList.remove("hidden");$("#opDiscount").closest("label").classList.remove("hidden");$("#opType").disabled=false;$("#opDiscount").disabled=false;$("#btnChangeOperationClient").classList.remove("hidden");$$("[data-sale-payment]").forEach(el=>el.classList.remove("hidden"));$("#operationDialog .product-quick-add").classList.remove("hidden");
+  const sourceSeller=sellerById(order?.vendedor_id||sale?.usuario_id)||sellers().find(user=>normalize(user.nombre)===normalize(order?.vendedor||sale?.usuario)),sessionSeller=sellerById(state.user?.id),selectedSeller=sourceSeller||sessionSeller;
+  $("#opSeller").innerHTML=operationSellerOptions(selectedSeller?.id||"");$("#opSeller").value=selectedSeller?.id||"";$("#opSeller").disabled=!!sourceSeller||!canIssueDocuments();
   const cfg=state.gestion.config; $("#opType").value=cfg.documento_default||"REMITO";
   $("#opClient").value="";$("#opClientSearch").value="";$("#opOccasionalName").value="";$("#opClientSelected").classList.add("hidden");$("#opOccasionalFields").classList.add("hidden");$("#opClientSearchBox").classList.remove("hidden");setOperationClientActionsVisible(true);renderOperationClientResults();
-  let matchedClient=false,clientWarning="";if(order){const match=matchOrderClient(order);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else if(match.kind==="occasional"){selectOrderOccasionalClient(order);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Usá la dirección del pedido para elegir la ficha correcta.",missing_id:"El ID del cliente ya no coincide con una ficha activa. Elegí el cliente antes de guardar.",missing:"El pedido no tiene datos suficientes para identificar al cliente. Elegilo antes de guardar."};clientWarning=messages[match.reason]||messages.missing;const hint=$("#opClientSearchHint");hint.textContent=clientWarning;hint.className="client-search-hint error"}}
+  let matchedClient=false,clientWarning="";if(sourceDocument){const match=matchOrderClient(sourceDocument);if(match.client){selectOperationClient(match.client.id);matchedClient=true}else if(match.kind==="occasional"){selectOrderOccasionalClient(sourceDocument);matchedClient=true}else{const messages={duplicate_id:"Hay más de una ficha con el mismo ID. Revisá clientes antes de continuar.",duplicate_name:"Hay más de un cliente con ese nombre. Usá la dirección del origen para elegir la ficha correcta.",missing_id:"El ID del cliente ya no coincide con una ficha activa. Elegí el cliente antes de guardar.",missing:"El origen no tiene datos suficientes para identificar al cliente. Elegilo antes de guardar."};clientWarning=messages[match.reason]||messages.missing;const hint=$("#opClientSearchHint");hint.textContent=clientWarning;hint.className="client-search-hint error"}}
   $("#opProductSearch").value="";$("#opProductResults").innerHTML="";$("#opProductResults").classList.add("hidden");$("#opProductSearchHint").className="product-search-hint";$("#opProductSearchHint").textContent="Sin cantidad indicada se pregunta antes de agregar. Acepta *, x y cantidades con coma.";
   renderDraftItems(); updateOperationTotal(); $("#operationDialog").showModal();if(clientWarning)toast(clientWarning,"error");setTimeout(()=>$(matchedClient?"#opProductSearch":"#opClientSearch").focus(),80);
 }
@@ -1136,7 +1149,7 @@ function openCreditNote(referenceId){
   if(!reference)return toast("El remito ya no está vigente.","error");
   const credited=creditedQuantities(referenceId),available=operationItems(referenceId).map(item=>({...item,maximo:Math.max(0,numeric(item.cantidad)-numeric(credited[String(item.producto_id)]))})).filter(item=>item.maximo>.0001);
   if(!available.length)return toast("Ese remito ya fue acreditado por completo.","error");
-  openOperation();state.currentCreditOperation=reference;state.currentCreditMode="DEVOLUCION_PRODUCTOS";state.currentOrder=null;
+  openOperation();state.currentCreditOperation=reference;state.currentCreditMode="DEVOLUCION_PRODUCTOS";state.currentOrder=null;state.currentSale=null;
   state.draftItems=available.map(item=>({id_producto:item.producto_id,nombre:item.producto,cantidad:item.maximo,precio:numeric(item.precio_unitario),descuento_pct:numeric(item.descuento_pct),maximo:item.maximo,marca:item.marca||""}));
   const sellerInfo=operationSellerInfo(reference);$("#opSourceOrder").value="";$("#opReferenceOperation").value=reference.operacion_id;$("#operationDialogTitle").textContent=`Nota de crédito de ${formatOperationNumber(reference.numero)}`;$("#creditNoteBanner").innerHTML=`Se descontará del remito <b>${esc(formatOperationNumber(reference.numero))}</b> y de la comisión original de <b>${esc(sellerInfo.nombre)}</b>. Eliminá los productos que no correspondan y ajustá solamente las cantidades.`;$("#creditNoteBanner").classList.remove("hidden");$("#opType").value="NOTA_CREDITO";$("#opType").disabled=true;$("#opDiscount").value=numeric(reference.descuento_pct);$("#opDiscount").disabled=true;$("#opSeller").innerHTML=`<option value="${esc(sellerInfo.id)}">${esc(sellerInfo.nombre)}</option>`;$("#opSeller").value=sellerInfo.id;$("#opSeller").disabled=true;$$("[data-sale-payment]").forEach(el=>el.classList.add("hidden"));$("#opPaymentMethod").value="CUENTA_CORRIENTE";$("#opPaidAmount").value="0";$("#operationDialog .product-quick-add").classList.add("hidden");
   const client=clientById(reference.cliente_id)||occasionalProfileById(reference.cliente_id);if(client)selectOperationClient(client.id);else{$("#opClient").value=reference.cliente_id;$("#opClientSearchBox").classList.add("hidden");setOperationClientActionsVisible(false);$("#opClientSelectedName").textContent=reference.cliente;$("#opClientSelectedMeta").textContent="Cliente del remito original";$("#opClientSelected").classList.remove("hidden")}$("#btnChangeOperationClient").classList.add("hidden");renderDraftItems();updateOperationTotal();setTimeout(()=>$("[data-item-qty]")?.focus(),60);
@@ -1162,7 +1175,7 @@ function mixedTotal(prefix){return ["Cash","Transfer","Check"].reduce((s,k)=>s+(
 function updateOperationTotal() { syncDraftFromDom(); const total=operationTotal(),method=$("#opPaymentMethod").value;if(method==="MIXTO")$("#opPaidAmount").value=mixedTotal("op");else if(["EFECTIVO","TRANSFERENCIA"].includes(method)&&state.autoPaidAmount)$("#opPaidAmount").value=total.toFixed(2);const paid=Math.min(total,Number($("#opPaidAmount").value)||0); $("#opTotal").textContent=money(total); $("#opBalance").textContent=`Saldo: ${money(total-paid)}`; $$(".item-row").forEach((r,i)=>$(".line-total",r).textContent=money(draftLineSubtotal(state.draftItems[i]))); }
 function stageCreatedOperation(data,payload,total,paid){
   const now=new Date().toISOString(),subtotal=payload.items.length?payload.items.reduce((sum,item)=>sum+draftLineSubtotal(item),0):total;
-  state.gestion.operaciones.push({operacion_id:data.operacion_id,numero:data.numero,tipo:payload.tipo,fecha:payload.fecha,cliente_id:payload.cliente_id,cliente:payload.cliente,vendedor_id:payload.vendedor_id,vendedor:payload.vendedor,origen_tipo:payload.referencia_operacion_id?"NOTA_CREDITO":(payload.origen_pedido_id?"PEDIDO":"MANUAL"),origen_pedido_id:payload.origen_pedido_id,referencia_operacion_id:payload.referencia_operacion_id||"",credito_tipo:payload.credito_tipo||"",credito_concepto:payload.credito_concepto||"",comision_estado:data.comision_estado||payload.comision_estado||"",usuario_id:state.user?.id||"",usuario:state.user?.nombre||"",estado:"VIGENTE",subtotal,descuento_pct:payload.descuento_pct,total,saldo:payload.tipo==="NOTA_CREDITO"?0:Math.max(0,total-paid),observaciones:payload.observaciones,created_at:now,updated_at:now,_initial_paid:paid,_initial_methods:[...new Set((payload.pagos_iniciales||[]).map(p=>p.medio))],_initial_payments:payload.pagos_iniciales||[]});
+  state.gestion.operaciones.push({operacion_id:data.operacion_id,numero:data.numero,tipo:payload.tipo,fecha:payload.fecha,cliente_id:payload.cliente_id,cliente:payload.cliente,vendedor_id:payload.vendedor_id,vendedor:payload.vendedor,origen_tipo:payload.referencia_operacion_id?"NOTA_CREDITO":(payload.origen_pedido_id?"PEDIDO":(payload.origen_venta_id?"VENTA":"MANUAL")),origen_pedido_id:payload.origen_pedido_id,origen_venta_id:payload.origen_venta_id,referencia_operacion_id:payload.referencia_operacion_id||"",credito_tipo:payload.credito_tipo||"",credito_concepto:payload.credito_concepto||"",comision_estado:data.comision_estado||payload.comision_estado||"",usuario_id:state.user?.id||"",usuario:state.user?.nombre||"",estado:"VIGENTE",subtotal,descuento_pct:payload.descuento_pct,total,saldo:payload.tipo==="NOTA_CREDITO"?0:Math.max(0,total-paid),observaciones:payload.observaciones,created_at:now,updated_at:now,_initial_paid:paid,_initial_methods:[...new Set((payload.pagos_iniciales||[]).map(p=>p.medio))],_initial_payments:payload.pagos_iniciales||[]});
   const localItems=payload.items.length?payload.items:[{id_producto:"AJUSTE-FINANCIERO",nombre:payload.credito_tipo==="CREDITO_GENERAL"?"Crédito general":"Bonificación comercial",cantidad:1,precio:total,descuento_pct:0}];state.gestion.items.push(...localItems.map((item,index)=>({item_id:`LOCAL-IT-${index}`,operacion_id:data.operacion_id,orden:index+1,producto_id:item.id_producto,producto:item.nombre,cantidad:item.cantidad,precio_unitario:item.precio,descuento_pct:numeric(item.descuento_pct),subtotal:draftLineSubtotal(item)})));
   saveCurrentCache();
 }
@@ -1176,7 +1189,7 @@ async function saveOperation(event) {
   if(occasionalMode&&!occasionalName)return toast("Escribí el nombre del cliente ocasional.","error");
   if(!cliente?.id||!cliente?.nombre)return toast("Buscá y elegí el cliente correcto.","error");
   if(state.currentCreditMode==="DEVOLUCION_PRODUCTOS"&&items.some(item=>numeric(item.cantidad)>numeric(item.maximo)+.0001))return toast("Una cantidad supera lo disponible en el remito.","error");const total=operationTotal();if(financial&&total<=0)return toast("Ingresá el importe del crédito.","error");if(financial&&!$("#financialCreditConcept").value.trim())return toast("Ingresá el motivo del crédito.","error");const payments=(state.currentCreditOperation||financial)?[]:readPayments("op"),paid=payments.reduce((s,p)=>s+Number(p.importe),0);if(paid>total+.01)return toast("El pago inicial no puede superar el total.","error");if(!state.currentCreditOperation&&!financial&&$("#opPaymentMethod").value!=="CUENTA_CORRIENTE"&&!payments.length)return toast("Ingresá el importe pagado.","error");
-  const sellerValue=$("#opSeller").value,direct=sellerValue==="__NO_COMMISSION__",selectedSeller=sellerById(sellerValue)||(state.currentCreditOperation?operationSellerInfo(state.currentCreditOperation):null),payload={tipo:$("#opType").value,fecha:$("#opDate").value,cliente_id:cliente.id,cliente:cliente.nombre,vendedor_id:direct?"":(selectedSeller?.id||""),vendedor:direct?"Venta directa / sin comisión":(selectedSeller?.nombre||""),comision_estado:direct?"NO_APLICA":"APLICA",credito_tipo:state.currentCreditMode||"",credito_importe:financial?total:0,credito_concepto:financial?$("#financialCreditConcept").value.trim():"",origen_pedido_id:$("#opSourceOrder").value,referencia_operacion_id:$("#opReferenceOperation").value,descuento_pct:Number($("#opDiscount").value)||0,observaciones:$("#opNotes").value.trim(),items,pagos_iniciales:payments};
+  const sellerValue=$("#opSeller").value,direct=sellerValue==="__NO_COMMISSION__",selectedSeller=sellerById(sellerValue)||(state.currentCreditOperation?operationSellerInfo(state.currentCreditOperation):null),payload={tipo:$("#opType").value,fecha:$("#opDate").value,cliente_id:cliente.id,cliente:cliente.nombre,vendedor_id:direct?"":(selectedSeller?.id||""),vendedor:direct?"Venta directa / sin comisión":(selectedSeller?.nombre||""),comision_estado:direct?"NO_APLICA":"APLICA",credito_tipo:state.currentCreditMode||"",credito_importe:financial?total:0,credito_concepto:financial?$("#financialCreditConcept").value.trim():"",origen_pedido_id:$("#opSourceOrder").value,origen_venta_id:$("#opSourceSale").value,referencia_operacion_id:$("#opReferenceOperation").value,descuento_pct:Number($("#opDiscount").value)||0,observaciones:$("#opNotes").value.trim(),items,pagos_iniciales:payments};
   const btn=$("#btnSaveOperation");btn.disabled=true;btn.textContent="Guardando…";
   try{const data=await apiPost("create_operacion",payload);stageCreatedOperation(data,payload,total,paid);$("#operationDialog").close();toast(`Comprobante ${formatOperationNumber(data.numero)} guardado`);showOperationDetail(data.operacion_id,false);refreshAfterMutation();}catch(err){toast(err.message,"error")}finally{btn.disabled=false;btn.textContent="Guardar comprobante";}
 }
@@ -1351,12 +1364,13 @@ function bindEvents(){
   bindOffersPdfEvents();
   initOperationsUI();
   $("#btnConfirmOrderReuse").addEventListener("click",confirmOrderReuse);
-  $("#orderReuseDialog").addEventListener("close",()=>{state.pendingOrderReuseId=""});
+  $("#orderReuseDialog").addEventListener("close",()=>{state.pendingSourceReuse=null});
   $("#btnCreateOperationClient").addEventListener("click",()=>openClientEditor("","operation"));
   $("#clientDialog").addEventListener("close",()=>{state.clientEditorOrigin=""});
   $("#loginForm").addEventListener("submit",login);$("#btnLogout").addEventListener("click",()=>{clearSession();showLogin()});$("#btnRefresh").addEventListener("click",loadAll);$("#homeLogo").addEventListener("click",()=>showView("home"));
   $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view,{fromMainNavigation:true})});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go,{fromMainNavigation:true})}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const editProduct=e.target.closest("[data-edit-product]");if(editProduct)openProductEditor(editProduct.dataset.editProduct);const editClient=e.target.closest("[data-edit-client]");if(editClient)openClientEditor(editClient.dataset.editClient);const editUser=e.target.closest("[data-edit-user]");if(editUser)openUserEditor(editUser.dataset.editUser);const editCommission=e.target.closest("[data-user-commission]");if(editCommission)openCommissionEditor(editCommission.dataset.userCommission);const clientAccount=e.target.closest("[data-client-account]");if(clientAccount)openClientAccount(clientAccount.dataset.clientAccount);const editOffer=e.target.closest("[data-edit-offer]");if(editOffer)openOfferEditor(editOffer.dataset.editOffer);const draftOffer=e.target.closest("[data-draft-offer]");if(draftOffer)toggleDraftOffer(Number(draftOffer.dataset.draftOffer));const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op){if($("#detailDialog")?.open)$("#detailDialog").close();showOperationDetail(op.dataset.operationDetail)}const credit=e.target.closest("[data-credit-note]");if(credit){if($("#detailDialog")?.open)$("#detailDialog").close();openCreditNote(credit.dataset.creditNote)}const closure=e.target.closest("[data-commission-closure]");if(closure)openCommissionClosure(closure.dataset.commissionClosure);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
   document.addEventListener("click",e=>{const financial=e.target.closest("[data-financial-credit]");if(financial)openFinancialCredit(financial.dataset.financialCredit);const resolve=e.target.closest("[data-resolve-commission]");if(resolve)openCommissionResolution(resolve.dataset.resolveCommission);const report=e.target.closest("[data-report-open]");if(report)openReport(report.dataset.reportOpen);if(e.target.closest("[data-report-back]"))showReportsHub()});
+  document.addEventListener("click",e=>{const saleImport=e.target.closest("[data-sale-import]");if(saleImport)requestSaleImport(saleImport.dataset.saleImport);const salePrint=e.target.closest("[data-sale-print]");if(salePrint)printSale(salePrint.dataset.salePrint)});
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
   document.addEventListener("click",e=>{const editAd=e.target.closest("[data-edit-ad]");if(editAd)openAdEditor(editAd.dataset.editAd)});
   document.addEventListener("keydown",e=>{const card=e.target.closest?.("[data-receipt-card]");if(card&&(e.key==="Enter"||e.key===" ")){e.preventDefault();showReceiptDetail(card.dataset.receiptCard)}});

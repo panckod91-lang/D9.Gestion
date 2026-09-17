@@ -68,9 +68,12 @@
             <button type="button" class="kpi kpi-link amber" data-go="cuentas"><span>Saldo pendiente</span><strong id="kpiDebt">$ 0</strong><small>cuentas corrientes</small></button>
             <button type="button" class="kpi kpi-link violet" data-go="cheques"><span>Cheques próximos</span><strong id="kpiChecks">0</strong><small>en los próximos 7 días</small></button>
           </div>
-          <div class="home-columns">
-            <article class="panel"><div class="panel-head"><div><h3>Pedidos recientes</h3><p>Convertí un pedido sin volver a cargarlo.</p></div><button class="link-button" data-go="pedidos">Ver todos</button></div><div id="homeOrders" class="compact-list empty">Sin pedidos.</div></article>
-            <article class="panel"><div class="panel-head"><div><h3>Cobranzas pendientes</h3><p>Clientes con saldo abierto.</p></div><button class="link-button" data-go="cuentas">Ver cuentas</button></div><div id="homeDebts" class="compact-list empty">Sin saldos pendientes.</div></article>
+          <div class="home-columns home-activity-grid">
+            <article class="panel home-primary-panel"><div class="panel-head"><div><h3>Pedidos recientes</h3><p>Convertí un pedido sin volver a cargarlo.</p></div><button class="link-button" data-go="pedidos">Ver todos</button></div><div id="homeOrders" class="compact-list empty">Sin pedidos.</div></article>
+            <div class="home-side-stack">
+              <article class="panel"><div class="panel-head"><div><h3>Cobranzas pendientes</h3><p>Clientes con saldo abierto.</p></div><button class="link-button" data-go="cuentas">Ver cuentas</button></div><div id="homeDebts" class="compact-list empty">Sin saldos pendientes.</div></article>
+              <article class="panel"><div class="panel-head"><div><h3>Ventas recientes</h3><p>Ventas registradas desde D9 Pedidos.</p></div><span class="home-live-label">Automático</span></div><div id="homeSales" class="compact-list empty">Sin ventas recientes.</div></article>
+            </div>
           </div>
         </section>
 
@@ -246,6 +249,7 @@
     <form id="operationForm" method="dialog">
       <div class="dialog-head"><div><small>NUEVO COMPROBANTE</small><h2 id="operationDialogTitle">Crear desde cero</h2></div><button type="button" class="dialog-close" data-close="operationDialog">×</button></div>
       <input id="opSourceOrder" type="hidden">
+      <input id="opSourceSale" type="hidden">
       <input id="opReferenceOperation" type="hidden">
       <div id="creditNoteBanner" class="credit-note-banner hidden"></div>
       <div class="form-grid">
@@ -502,7 +506,7 @@
   </dialog>
 
   <dialog id="orderReuseDialog" class="dialog">
-    <div class="dialog-head"><div><small>PEDIDO YA UTILIZADO</small><h2>¿Generar otro comprobante?</h2></div><button type="button" class="dialog-close" data-close="orderReuseDialog">×</button></div>
+    <div class="dialog-head"><div><small id="orderReuseEyebrow">ORIGEN YA UTILIZADO</small><h2>¿Generar otro comprobante?</h2></div><button type="button" class="dialog-close" data-close="orderReuseDialog">×</button></div>
     <div class="order-reuse-warning">
       <strong id="orderReuseTitle">Este pedido ya fue convertido.</strong>
       <p id="orderReuseDetail"></p>
