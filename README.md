@@ -1,421 +1,194 @@
-# D9 Gestión
+# D9 Gestión v0.19.0 PROD
 
-## v0.18.2-prod
+Etapa financiera coordinada con Pedidos v1.5.35. Bases reales: Gestión v0.18.2 y Pedidos v1.5.34. Este ZIP contiene sólo Gestión y su Script; Pedidos tiene su entrega propia. No se publicó ni se modificó producción.
 
-- La búsqueda textual de Lista de precios utiliza solamente código/ID y nombre/descripción.
-- Categoría y Marca continúan funcionando como filtros explícitos e independientes.
-- Generar comprobante conserva sin cambios su criterio correcto de búsqueda.
-- Cambio exclusivamente frontend; Apps Script no fue modificado.
+## Resultado e instalación
 
-Versión actual: `v0.18.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+Venta Zonal y Cobrar de mostrador usan la Cuenta Corriente REAL de Gestión. Sin otra CC, recibera, pagos o cheques paralelos. Una Venta registra una vez su dinero; el comprobante posterior documenta, no vuelve a endeudar/cobrar.
 
-## v0.18.1-prod
+Se preservan Home, Ventas, impresión, reutilización deliberada, precios históricos, Pedidos, listas, Ofertas y demás módulos. Sólo se adapta la procedencia financiera necesaria y el refresco de saldos/recibos con polling existente.
 
-- Agrega una sección `Ventas` con histórico, búsqueda por cliente/venta_id, período y vendedor.
-- Conserva las acciones de impresión, creación de comprobante y reutilización protegida de v0.18.0.
-- Uniforma el scroll interno de Pedidos recientes, Cobranzas pendientes y Ventas recientes en escritorio, manteniendo los encabezados visibles.
-- Conserva en móvil el Home apilado y ubica Ventas dentro de `Más`.
+1. Conservar ZIPs anteriores y copias versionadas de ambas Sheets y Scripts. No borrar pendientes/intenciones locales.
+2. Instalar **D9 Script PROD Pedidos** del ZIP Pedidos v1.5.35. Actualizar su despliegue existente conservando URL. No usar aquí el Script de Gestión.
+3. Instalar **Script Gestión** con `apps-script/Code.txt` de ESTE ZIP, idéntico a Code.gs. Nueva versión del despliegue existente, misma URL, IDs, propiedades y contadores.
+4. **NO ejecutar `setupD9Gestion()`** ni reiniciar secretos/numeraciones. Las columnas nuevas y diario técnico se incorporan al primer uso.
+5. Autorizar `UrlFetchApp` en Gestión si se solicita: valida el token contra Pedidos. Verificar destino de propiedad opcional `PEDIDOS_API_URL` o URL Pedidos incluida en código; debe ser el despliegue actualizado.
+6. Conservar SOURCE_SHEET_ID, GESTION_SHEET_ID, TOKEN_SECRET y permisos/escrituras existentes. Gestión → Usuarios sigue requiriendo SOURCE_WRITES_ENABLED=true, como antes; no se habilita automáticamente.
+7. Reemplazar ambos frontends completos en alojamientos separados. Pedidos debe incluir finance.js y su D9_FINANCE_URL debe coincidir con Gestión; ésta conserva config.js. Subir sólo archivos web, no Apps Script/README/copias de datos.
+8. Abrir online, comprobar v0.19.0 / v1.5.35 e ingresar en Pedidos para su sesión nueva. Se conservan trabajo offline y pendientes convencionales.
+9. **Antes de operar dinero real, rotar desde Gestión → Usuarios las claves antes expuestas en bootstrap**, con claves nuevas y robustas. La corrección no borra copias antiguas; cambio de clave invalida tokens Pedidos anteriores.
+10. Realizar piloto PC/móvil/financiero. No habilitar finanzas con sólo una mitad actualizada. Revisar con autorización despliegues antiguos públicos con rutas/claves inseguras: esta entrega local no los elimina.
 
-## v0.17.2-prod
+Sin claves maestras, excepciones Admin ni secretos compartidos. El token Pedidos no es sesión administrativa de Gestión.
 
-Corrección localizada al compartir el PDF de Ofertas: la confirmación toma el valor actual del mensaje editable y lo entrega junto con el archivo en una única llamada a Web Share. Si el mensaje queda vacío, comparte solamente el PDF.
+## Usuarios de Admin: compatibilidad deliberadamente retirada
 
-## v0.17.1-prod
+**La única administración efectiva de usuarios es Gestión → Usuarios**, con autenticación, autorización admin, maestro central y salvaguardas existentes.
 
-- PDF comercial independiente para Ofertas vigentes.
-- Precio habitual opcional; precio de oferta siempre protagonista.
-- Una sola generación para abrir/imprimir, descargar o compartir.
-- Mensaje de WhatsApp editable antes de entregar texto y PDF a Web Share.
-- Fallback con descarga y apertura de WhatsApp cuando no se pueden compartir archivos.
-- Lista de precios v0.17.0 sin modificaciones funcionales.
+En Script Pedidos update_usuarios/upsert_usuarios están cerrados en backend y su helper también rechaza escritura. Se verificaron sólo rutas de maestro/autenticación: no queda otra equivalente habilitada para cambiar claves/roles/permisos. Rechazo también con token Pedidos de usuario admin. Bootstrap público sin claves/secretos de usuarios.
 
-## v0.17.0-prod
+**D9 Admin → Usuarios queda obsoleto para escritura.** Su frontend no se tocó ni hay bypass. No se promete compatibilidad de autenticaciones antiguas que dependieran de claves públicas: ya no se distribuyen. Para administrar usuarios utilizar Gestión.
 
-- Consulta única de Lista de precios accesible desde Productos y precios y Reportes.
-- Filtros combinados de categoría, una o varias marcas y búsqueda de producto.
-- Selección administrativa de Lista 1, Lista 2 y Lista 3.
-- PDF adaptado fielmente desde D9 Pedidos y uso de Web Share con descarga segura como respaldo.
-- Cambio exclusivamente frontend; Apps Script sin modificaciones.
+## Informe — 26 puntos
 
-Aplicación web independiente para la gestión comercial de Distribuidora D9.
+### 1. Cuenta Corriente antes del cambio
 
-## v0.16.0-prod
+Saldo del cliente = suma debe menos haber de movimientos vigentes. Negativo = a favor. Saldos documentales por operacion_id. Un pago A cuenta sin referencia baja saldo global, no imputa documentos automáticamente. Se conserva.
 
-- El PDF de Pedidos adopta el formato operativo compacto del generador real de D9 Admin.
-- Antes de generarlo permite elegir si se incluyen importes; la opción comienza desmarcada.
-- Sin importes conserva código, cantidad, descripción, notas, cliente/dirección y resúmenes de Admin, sin IDs técnicos, vendedor ni información monetaria.
-- Con importes mantiene la misma estética y agrega precio histórico, importe de línea, total por cliente y total general.
-- Productos y precios incorpora `Registro`, basado en la hoja `auditoria` existente.
-- Registra una sola actividad confirmada por importación, actualización masiva o modificación individual; analizar o cancelar no genera registros.
-- Conserva el espacio de trabajo de Recibos en dos columnas incorporado en v0.15.2.
+### 2. Hojas participantes
 
-Requiere actualizar el frontend y el Apps Script propio de Gestión. No modifica D9 Pedidos, D9 Admin, Worker ni otras Sheets.
+Sheet central: usuarios, clientes, productos, ventas. Gestión: operaciones, operacion_items, movimientos, recibos, pagos, cheques, contadores y auditoria existentes. Nueva **finanzas_intenciones**, sólo diario TÉCNICO de idempotencia/recuperación: no calcula saldo ni es libro financiero paralelo.
 
-## v0.15.2-prod
+Columnas diario: intencion_id, usuario_id, cliente_id, tipo, estado, plan, created_at, updated_at. Plan almacena IDs/filas/importes/resultado, sin claves/tokens.
 
-- Reorganiza Recibos en escritorio como espacio de trabajo de dos columnas: Recibos emitidos a la izquierda y Saldos por cobrar a la derecha.
-- Cada lista conserva su buscador, información y acciones, con altura independiente para evitar que una desplace a la otra.
-- En móvil vuelve a una sola columna y prioriza Saldos por cobrar antes del historial de recibos.
-- Cambio exclusivamente visual: no modifica `app.js`, cálculos, cuenta corriente, creación, impresión ni Apps Script.
+### 3. Nacimiento de deuda
 
-## v0.15.1-prod
+Antes crear comprobante agregaba débito COMPROBANTE; continúa para manuales, Pedido y Venta histórica. Venta financiera nueva crea débito VENTA con referencia VTA-<venta_id>; su documento posterior no agrega otro.
 
-- Importar lista abre primero un asistente explicativo; el selector de archivos sólo aparece al elegirlo expresamente.
-- El análisis ocurre sin escrituras y presenta archivo, listas detectadas/ausentes, IVA y cantidades antes de confirmar.
-- Cancelar o cerrar descarta la revisión sin modificar Productos.
-- Mantiene sin cambios el motor de importación, sus validaciones y el endpoint incorporado en v0.15.0.
+### 4. Registro de cobro
 
-Hotfix de interfaz: si ya se instaló el Apps Script de v0.15.0, no hace falta volver a actualizarlo.
+Recibo con pagos y crédito PAGO en movimientos por el importe total. Mostrador pide registrar a Gestión con sesión autorizada; no crea otro circuito en Pedidos. Resultado con número real y saldos anterior/posterior.
 
-## v0.15.0-prod
+### 5. Recibos/Pagos
 
-- Agrega Importar lista dentro de Productos y precios, reutilizando las reglas del importador histórico de D9.
-- Detecta Lista 1 obligatoria y Lista 2/3 opcionales; una lista ausente se conserva sin cambios.
-- Convierte precios de origen sin IVA a precios finales con IVA 21% y redondeo a dos decimales.
-- Crea productos nuevos, actualiza existentes y oculta sin borrar los ausentes o con Lista 1 vacía/cero.
-- Presenta una revisión previa con totales y bloquea columnas faltantes, duplicados y precios inválidos.
-- Reagrupa Actualización masiva, Importar lista y Ofertas dentro de Productos y precios.
+Constructor puro d9gReceiptRows_ extraído del existente y usado por ambos circuitos. Misma numeración, formatos, medios/validaciones. Gestión sigue admitiendo mixtos; mostrador usa un medio por confirmación. WhatsApp/finalizar no registran otro recibo.
 
-Requiere actualizar el frontend y el Apps Script propio de Gestión. No modifica D9 Pedidos, D9 Admin ni Worker.
+Imputación como antes: operación específica o A cuenta. Mostrador propone la única deuda cuando hay una; con varias no inventa FIFO. **A cuenta baja saldo global, no saldos individuales no imputados**; diferencia global/documental no implica deuda duplicada.
 
-## v0.14.2-prod
+### 6. Cheques
 
-- Corrige el `NetworkError` fugaz que podía mostrar Firefox al refrescar Gestión.
-- El origen exacto era la lectura POST `bootstrap` ejecutada por `loadAll()` después de mostrar la caché local.
-- Las lecturas con un fallo transitorio de red se reintentan una sola vez después de 400 ms.
-- Las escrituras no se reintentan y mantienen todas sus protecciones actuales.
-- Si la red continúa caída, se muestra un mensaje claro en español y se conservan los datos guardados.
+Cheques reales vinculados a pago_id/recibo_id. Banco/número/vencimiento obligatorios; librador opcional. Inicial EN_CARTERA; no supone cobro bancario. Estados/rechazo/reversión y permisos siguen en Gestión, resolviendo procedencia VTA cuando corresponde.
 
-## v0.14.1-prod
+### 7. Campos nuevos
 
-- Alinea en escritorio los pedidos recientes como Cliente → Acción → Importe.
-- Mantiene todos los importes en una columna limpia al extremo derecho.
-- Conserva sin cambios la tarjeta, los botones, su lógica y la presentación móvil aprobada.
-- Hotfix exclusivamente frontend; no requiere actualizar Apps Script.
+Al final de ventas: **medio_pago, finanzas_id, finanzas_item**. Ítem identifica renglón recuperable sin duplicar; se conservan primeras 15 columnas/precios históricos.
 
-## v0.14.0-prod
+Al final de operaciones: **finanzas_venta_id**, vínculo a Venta financiera. Sin cambios a operacion_items, IVA o maestro/listas.
 
-- Agrega `Dto. %` por producto al crear cualquier comprobante.
-- Conserva precio unitario original, descuento individual y subtotal neto en `operacion_items`.
-- Aplica el descuento general después de sumar los subtotales ya descontados.
-- Muestra el descuento individual en detalle e impresión/reimpresión.
-- Las notas de crédito por devolución heredan precio y descuento de la línea original.
-- Los comprobantes anteriores siguen interpretándose con descuento de línea 0%.
-
-Requiere actualizar el frontend y el Apps Script propio de Gestión. No modifica D9 Pedidos, D9 Admin, Worker ni la Sheet principal.
-
-## v0.13.0-prod
-
-- Una única pantalla Comprobantes, con accesos Recientes y Con saldo sobre los mismos filtros.
-- Período, tipo, cliente buscable (incluidos históricos y ocasionales), vendedor, estado documental y saldo.
-- Entrada con últimos 30 días, vigentes y todos los tipos; Con saldo consulta todo el historial.
-- Orden por fecha documental, con creación como desempate; páginas locales de 25 registros y conservación al volver del detalle.
-- Búsqueda ampliable explícitamente a todo el historial, mensajes de filtros sin resultados y alcance visible.
-- Filas alineadas en escritorio y tarjetas móviles; filtros secundarios desplegables.
-- Lista con Ver, Imprimir y Más acciones; detalle con vínculos remito/NC y explicación de restricciones conocidas.
-- Sin saldo pendiente no se presenta como Pagado; Anulado tiene prioridad visual; NC identificadas por su subtipo.
-- Nuevo operations-ui.js concentra presentación y filtros. Se reutilizan sin cambios los circuitos operativos de app.js.
-- Scripts, endpoints, cuenta corriente, sincronización, impresión y resto de apps sin cambios.
-
-## v0.12.2-prod
-
-- Reduce espacios verticales entre datos de cada pedido reciente en móvil.
-- Separa pedidos con fondo suave, borde y esquinas redondeadas.
-- Conserva tamaños de texto y botones, escritorio y lógica de v0.12.1.
-
-## v0.12.1-prod
-
-- Ajusta únicamente Pedidos recientes del Inicio en pantallas de hasta 760 px.
-- Cliente y datos secundarios usan todo el ancho; importe en línea propia y acciones debajo, con salto de línea cuando sea necesario.
-- Conserva la cabecera, Ver todos y el diseño de escritorio.
-- `app.js`, Scripts, endpoints y D9 Pedidos permanecen intactos.
-
-## v0.12.0-prod
-
-- Agrega **Nuevo cliente** dentro de Nuevo comprobante reutilizando el formulario y guardado del módulo Clientes.
-- Al guardar vuelve al comprobante abierto, selecciona el cliente nuevo y conserva productos, importes y demás datos cargados.
-- Al elegir o cambiar un cliente registrado aplica su vendedor asignado; luego permite modificarlo manualmente hasta volver a cambiar de cliente.
-- Identifica pedidos ya usados, muestra los comprobantes generados y exige confirmar **Generar igualmente** para reutilizarlos.
-- Es una actualización exclusiva de frontend; conserva sin cambios el Apps Script de Gestión v0.11.3.
-
-## v0.11.3-prod
-
-- Mueve `bootstrap`, `pedidos` y `pedidos_revision` de GET a POST para que el token de sesión viaje dentro del cuerpo y no en la URL.
-- Mantiene las lecturas autenticadas fuera de `LockService`; el polling automático no bloquea comprobantes, recibos ni otras escrituras.
-- Deja GET únicamente para consultar el estado público y la versión del Script.
-- Agrega `id` y `scope` al manifest conservando `./`, la misma identidad efectiva que ya aportaba `start_url`.
-- Conserva el polling liviano cada 15 segundos incorporado en v0.11.2.
-- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni ninguna Sheet.
-
-## v0.11.2-prod
-
-- Detecta automáticamente pedidos nuevos mientras Gestión permanece abierta.
-- Consulta cada 15 segundos una huella liviana de la hoja `pedidos` y sólo descarga el historial cuando la huella cambia.
-- Vuelve a consultar inmediatamente al regresar a la pestaña o recuperar el foco.
-- Actualiza Inicio y Pedidos sin recargar la aplicación, cerrar diálogos ni alterar formularios en curso.
-- Pausa las consultas cuando la app está en segundo plano o cuando Ale está revisando un rango histórico personalizado.
-- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni la Sheet principal.
-
-## v0.11.1-prod
-
-- Recupera el vendedor de comprobantes históricos mediante la coincidencia exacta de `origen_pedido_id` con el pedido original.
-- Corrige los filtros de Ventas y Comisiones: los remitos antiguos de Mati vuelven a aparecer aunque todavía no tuvieran `vendedor_id` fotografiado.
-- Mantiene como pendientes únicamente los comprobantes manuales o realmente ambiguos; no asigna vendedores por cliente ni por parecido de nombre.
-- Incluye el backend duplicado como `apps-script/Code.txt` para copiarlo con mayor comodidad a Google Apps Script.
-
-## v0.11.0-prod
-
-- Distingue comprobantes con comisión, ventas directas de Ale sin comisión y registros históricos pendientes de definir.
-- Permite a administración resolver cada remito pendiente asignando su vendedor real o marcándolo explícitamente como venta directa sin comisión; la decisión queda auditada y se propaga a sus notas de crédito.
-- Las ventas directas sin vendedor participan del control del período con base visible y comisión cero, sin exigir una regla ficticia.
-- Agrega bonificaciones financieras vinculadas a un remito: reducen la cuenta corriente y descuentan la comisión original de forma proporcional, sin simular devolución de productos.
-- Agrega créditos generales a un cliente, exclusivos de administración, que reducen la cuenta corriente y quedan fuera del reporte de comisiones.
-- Reorganiza Reportes como un menú de módulos. Ventas y Comisiones abren por separado, solicitan período y vendedor antes de mostrar resultados, y dejan visibles los reportes futuros aún pendientes.
-- Conserva las notas de crédito por devolución total o parcial de productos de `v0.10.0-prod`.
-- Agrega al final de `operaciones` las columnas `credito_tipo`, `credito_concepto`, `comision_estado` y `comision_motivo`; se crean automáticamente y no reordenan datos existentes.
-- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni la Sheet principal.
-
-## v0.10.0-prod
-
-- Completa **Reportes → Comisiones** con período libre, filtro por vendedor, resumen general y detalle auditable de cada comprobante.
-- Calcula únicamente remitos internos vigentes menos notas de crédito internas; los pedidos, proformas y notas de venta no generan comisión.
-- Incorpora notas de crédito vinculadas obligatoriamente a un remito vigente, con cantidades máximas, precios, cliente, vendedor y porcentaje heredados de la venta original.
-- Permite cerrar un período para congelar sus importes en `comisiones_cierres` y `comisiones_detalle`.
-- Bloquea cierres superpuestos, cierres con porcentajes faltantes y cierres realizados mientras hay un vendedor filtrado.
-- Impide crear o anular comprobantes comisionables dentro de períodos cerrados; una corrección posterior debe ingresarse como NC en un período abierto.
-- Guarda en cada ítem nuevo la marca y la fotografía de regla, porcentaje, base e importe de comisión, preparando futuras excepciones por marca.
-- Actualiza Ventas por vendedor e Inicio para mostrar las notas de crédito con signo negativo.
-- No modifica D9 Pedidos, D9 Admin, D9 Script PROD, Worker ni la Sheet principal.
-
-## v0.9.0-prod
-
-- Agrega en cada vendedor del módulo **Usuarios** la carga de su comisión general, visible como porcentaje o como pendiente de definir.
-- Guarda las reglas exclusivamente en la nueva hoja `comisiones_reglas` de la Sheet de Gestión, vinculadas al `vendedor_id` central; no duplica usuarios ni agrega porcentajes a la hoja `usuarios`.
-- La estructura incorpora marca, período de vigencia y estado para admitir más adelante excepciones por marca sin migrar el modelo.
-- Sólo Admin y Super admin pueden consultar o modificar las reglas; cada cambio queda registrado en `auditoria`.
-- Esta versión configura las reglas. Todavía no calcula ni liquida comisiones sobre comprobantes; esa etapa se incorporará junto con las fotografías históricas necesarias.
-- No requiere cambios en D9 Pedidos, D9 Admin ni D9 Script PROD.
-
-## v0.8.3-prod
-
-- Convierte el permiso especial en acceso de reemplazo operativo: el autorizado puede consultar pedidos y comprobantes de todos los vendedores.
-- Habilita el módulo Recibos y la carga de cobranzas para ese usuario, sin otorgarle administración de maestros, usuarios, configuración, anulaciones ni estados de cheques.
-- Al convertir un pedido, conserva y bloquea el vendedor original aunque el comprobante sea generado por otra persona.
-- En comprobantes creados desde cero, permite elegir el vendedor correspondiente.
-- Los usuarios de Gestión sin permiso operativo conservan la vista limitada a su propia actividad.
-
-## v0.8.2-prod
+### 8. Representación de medios
 
-- Incorpora el módulo **Usuarios** para administrar el maestro único de la hoja `usuarios` de la Sheet principal.
-- Mantiene intacto el campo `rol` que ya consumen D9 Pedidos y D9 Admin: vendedor, venta mostrador, cliente o admin.
-- Agrega al final de esa misma hoja `rol_gestion` y `permiso_comprobantes`, sin duplicar usuarios ni cambiar IDs existentes.
-- Define perfiles de Gestión: sin acceso, vendedor, admin y super admin. Admin y super admin tienen las mismas funciones operativas.
-- Permite asignar a un vendedor el acceso operativo a comprobantes y recibos.
-- Reserva recibos, cuentas corrientes, cheques, maestros, usuarios, reportes, configuración y anulaciones para administración.
-- Protege al administrador contra la desactivación o pérdida accidental de su propio acceso.
-- Las claves nunca se envían al navegador; al editar, una clave vacía conserva la existente.
-- No requiere cambios en D9 Pedidos, D9 Admin ni D9 Script PROD: todos conservan compatibilidad por encabezados y preservan las columnas nuevas.
+EFECTIVO / TRANSFERENCIA / CHEQUE / CUENTA_CORRIENTE, selección obligatoria sin defecto antes de registrar. Referencia transferencia opcional. Cheque real. Históricos sin condición no se adivinan.
 
-## v0.8.1-prod
+### 9. Venta CC: una deuda
 
-- Permite aplicar inmediatamente las coincidencias seguras aunque queden casos dudosos pendientes.
-- Incluye en el mismo lote los casos que Ale ya haya resuelto y deja intactos los restantes.
-- Distingue entre **omitidos** y **pendientes** tanto en la confirmación como en la auditoría.
-- Al volver a cargar el mismo PDF, separa las fichas que ya están actualizadas y evita ofrecerlas nuevamente como cambios.
-- El botón informa exactamente qué aplicará: seguros y decisiones revisadas.
+Débito con ID estable reservado en plan, referencia VTA-venta_id e intención previa a escritura. Reintento/reconciliación agrega sólo IDs faltantes. Venta CC no genera recibo.
 
-## v0.8.0-prod
+### 10. Venta cobrada: neto cero
 
-- Agrega un asistente para importar el listado fiscal `CLIENTES.pdf` del sistema anterior.
-- Lee el PDF localmente y no escribe nada durante el análisis.
-- Completa automáticamente sólo clientes cuyo ID y nombre normalizado coinciden y cuyos datos fiscales no presentan conflictos.
-- Deriva a revisión los códigos con nombres distintos, CUIT compartidos, datos fiscales diferentes y clientes que todavía no existen en D9.
-- Permite a Ale completar una ficha elegida, crear un cliente nuevo cuando el ID está libre u omitir el registro.
-- Exige resolver todos los casos dudosos antes de la confirmación final.
-- El lote valida concurrencia, conserva intactos los datos comerciales y queda registrado en la auditoría de Gestión.
-- Incorpora PDF.js dentro del proyecto: el análisis no depende de servicios externos ni modifica D9 Pedidos, D9 Admin, Worker o Script PROD.
+Efectivo/Transferencia/Cheque: débito y crédito del recibo por mismo total y referencia. Neto cero de ESA Venta, no cancelación de otra deuda previa. Débito/crédito se escriben juntos en lote de movimientos de la intención.
 
-## v0.7.2-dev
+### 11. Crear comprobante sin doble deuda y anular
 
-- Corrige la hora del reporte de ventas: los registros ISO/UTC se muestran explícitamente en `America/Argentina/Buenos_Aires`.
-- El cambio es solamente visual; no modifica comprobantes ni datos históricos.
+Integración existente por origen_venta_id. Una intención VENTA confirmada determina finanzas_venta_id. Backend exige mismo cliente y total y rechaza cobro inicial nuevo; UI avisa y oculta ese segundo cobro. Crear documento no agrega deuda.
 
-## v0.7.1-dev
+Generar otro deliberado conserva advertencia; tampoco duplica dinero. Sólo primer documento vigente muestra saldo del origen; aliases quedan sin saldo pendiente para no sumarlo dos veces visualmente. Anular el primero traslada esa presentación al siguiente vigente.
 
-- Corrige las sugerencias masivas de vendedor para pedidos históricos sin `cliente_id`: cruza primero por ID y luego, de forma segura, por nombre y dirección.
-- Los clientes ambiguos quedan sin sugerencia para evitar asignaciones incorrectas.
-- La pantalla informa cuántas sugerencias encontró antes de que el usuario decida aplicarlas y guardarlas.
+**Anular ese comprobante es documental: no revierte deuda que no creó; Venta/movimientos siguen vigentes.** Documentos que sí crearon dinero conservan anulación, NC y cierres actuales. NC/anulaciones resuelven origen financiero real; devoluciones agregadas entre todos los documentos del mismo origen impiden doble devolución de una Venta.
 
-## v0.7.0-dev
+No se agregó anulación económica de Venta. No usar anulación documental para cancelar esa Venta financieramente.
 
-- Agrega vendedor asignado a la ficha de cada cliente y filtro por vendedor.
-- Incorpora asignación rápida con sugerencias calculadas desde el historial de pedidos.
-- Los comprobantes nuevos guardan una copia del vendedor para preservar futuras comisiones aunque cambie la asignación del cliente.
-- Crea la pestaña Reportes y estrena Ventas por vendedor, con período, desglose de pagos iniciales, totales para caja e impresión/PDF A4.
-- Los comprobantes anteriores intentan recuperar su vendedor desde el pedido de origen o desde la ficha actual del cliente.
-- Actualiza el backend a `0.7.0`; las columnas nuevas se agregan automáticamente sin reordenar las existentes.
+### 12. venta_id
 
-## v0.6.8-dev
+Generación sin cambios. Agrupa productos y vincula intención, movimientos/origen documental. Se mantiene origen_venta_id y no se revalorizan históricos con el maestro.
 
-- Corrige los botones Guardar y Eliminar cliente que podían quedar deshabilitados por un permiso antiguo cargado desde caché.
-- La interfaz habilita las acciones al administrador y el Apps Script conserva la validación definitiva antes de escribir o eliminar.
-
-## v0.6.7-dev
-
-- Permite eliminar clientes desde el editor, con análisis previo de referencias.
-- Bloquea la eliminación si el cliente tiene comprobantes, recibos o movimientos de cuenta corriente.
-- Los pedidos históricos permanecen intactos y pueden revincularse por nombre y domicilio si su ID fue eliminado.
-- Actualiza el backend a `0.6.3`.
-
-## v0.6.6-dev
-
-- Corrige las etiquetas responsive de los botones de pedidos recientes en Inicio.
-- En PC muestra las acciones completas y reserva `Usar`, `✓ Usado` y `Reusar` para celular.
-
-## v0.6.5-dev
-
-- Los pedidos que ya originaron un comprobante se identifican como `Ya usado` y permiten abrirlo o reutilizar el pedido en uno nuevo.
-- El editor de ofertas muestra el nombre completo del producto y su precio normal de Lista 1.
-- Las ofertas ahora pueden eliminarse definitivamente, con confirmación y registro de auditoría.
-- Actualiza el backend a `0.6.2` para admitir la eliminación real de ofertas.
-
-## v0.6.4-dev
-
-- Los pedidos históricos con clientes repetidos se vinculan usando también dirección, localidad o teléfono.
-- Los pedidos de clientes sin ficha activa se cargan automáticamente como ocasionales.
-- Las advertencias abiertas desde un diálogo ahora se muestran sobre ese diálogo y también quedan visibles junto al campo afectado.
-
-## v0.6.3-dev
-
-- Al usar un pedido, Gestión vincula el cliente por `cliente_id` cuando está disponible.
-- Los pedidos históricos sin ID se reconocen por el nombre anterior al separador `|`.
-- Si existe más de una coincidencia, no elige automáticamente y pide revisión.
-
-## v0.6.2-dev
-
-- Los clientes ocasionales históricos aparecen como sugerencia al generar un comprobante.
-- Al reutilizar un ocasional se conserva su identidad y se acumula la cuenta corriente.
-- Los ocasionales históricos con el mismo nombre normalizado se muestran como una sola cuenta.
-- Ya se pueden emitir recibos para clientes ocasionales y aplicarlos a cualquiera de sus comprobantes pendientes.
-
-## v0.6.1-dev
-
-- Cambia el frontend a la nueva implementación web de D9 Gestión.
-- Renueva la caché de la PWA para descartar la URL archivada.
-- Conserva sin cambios el backend `v0.6.0` y el módulo completo de Publicidad.
-
-## v0.6.0-dev
-
-- Incorpora el módulo completo de Publicidad de D9 Admin.
-- Lista, busca, crea y edita banners de imagen completa o producto con textos.
-- Administra orden, estado, imágenes, enlace y vista previa responsive.
-- Guarda por encabezado en la pestaña `publicidad` de D9_pedidos y actualiza la pantalla inmediatamente.
-
-## v0.5.2-dev
-
-- Pedidos muestra por defecto únicamente los últimos 3 días.
-- Un rango de fechas consulta el período elegido bajo demanda.
-- Comprobantes agrega filtro por Remito, Factura pro forma y Nota de venta.
-
-## v0.5.1-dev
-
-- Devuelve a cada pedido el acceso directo visible para crear un comprobante, sin tener que desplegar el detalle.
-
-## v0.5.0-dev
-
-- Numeración independiente y autocorrectiva por tipo: `R`, `FPF` y `NDV`.
-- Historial de pedidos con búsqueda, rango de fechas, vendedor, estado y detalle desplegable.
-- Reporte filtrado de pedidos para PDF A4 y WhatsApp.
-- Productos, precios, clientes y ofertas se reflejan apenas el servidor confirma el guardado; la sincronización completa continúa en segundo plano.
-
-## v0.4.2-dev
-
-- Los productos con oferta se cargan en comprobantes con su precio normal.
-- La oferta se aplica únicamente al pulsar el botón de la línea.
-
-## v0.4.1-dev
-
-- Agrega Productos en oferta al menú lateral de escritorio, igual que en el menú móvil Más.
-
-## Primera base funcional
-
-- Inicio con resumen diario.
-- Lectura de pedidos, clientes, productos, listas y usuarios desde la Sheet central.
-- Conversión de pedidos en remitos, proformas o notas de venta.
-- Creación manual de comprobantes.
-- Carga rápida de productos por código o descripción, con cantidad opcional (`3*F037`, `3xqueso`, `0,5*jamón`) y cantidad 1 por defecto.
-- Si se busca solamente el producto, abre un diálogo compacto de cantidad: Enter vacío agrega 1 y un segundo Enter confirma.
-- Suma automática de cantidades cuando se vuelve a cargar un producto ya agregado.
-- Búsqueda de clientes por código o cualquier parte del nombre, sin desplegar listados interminables.
-- Cliente ocasional con nombre propio y un identificador interno independiente.
-- Efectivo y transferencia precargan el total como importe pagado; el valor sigue siendo editable.
-- Impresión compacta en medias hojas de un A4 vertical, con encabezado repetido, partes equilibradas y continuación automática cuando no entran todos los productos.
-- Pago inicial, pago mixto o saldo en cuenta corriente.
-- Recibos posteriores y aplicación a comprobantes.
-- Cobranza guiada desde clientes con saldo pendiente.
-- Buscadores por cualquier fragmento del texto, sin distinguir tildes ni mayúsculas.
-- Menú móvil “Más” para acceder a cheques, maestros y configuración.
-- Cuentas corrientes basadas en movimientos Debe/Haber.
-- Ingreso y seguimiento de cheques.
-- Anulación con contramovimiento y auditoría.
-- Numeración correlativa interna.
-- PWA responsive, pensada principalmente para escritorio.
-- Inicio inmediato desde la última copia local y actualización silenciosa en segundo plano.
-- Apertura instantánea del detalle después de confirmar un comprobante o recibo.
-- Versión visible en la sesión de escritorio y en el menú móvil “Más”.
-- Ale queda identificado como administrador mediante `ADMIN_USER_IDS` en las propiedades del Script.
-- Administración individual de productos sobre la Sheet central: alta, edición, categorías, marcas, estado y precios.
-- Categoría y marca con sugerencias tomadas de los productos existentes, manteniendo la posibilidad de escribir una nueva.
-- La pantalla Productos y precios muestra únicamente productos; Clientes y Usuarios se incorporarán luego como módulos separados.
-- Una sesión vencida vuelve inmediatamente al ingreso aunque existan datos locales en pantalla.
-- Detección automática de todas las columnas `lista_N` existentes en productos.
-- Actualización masiva de precios por porcentaje o importe, con filtros, lista de origen/destino, redondeo y vista previa.
-- Control de concurrencia optimista: si un precio cambió desde la vista previa, la actualización completa se cancela.
-- Auditoría de altas, modificaciones individuales y cambios masivos en la Sheet propia de Gestión.
-- Bloqueo de seguridad `SOURCE_WRITES_ENABLED`: la primera publicación permite revisar todo sin escribir en D9_pedidos.
-- Al crear comprobantes manuales, Gestión toma la lista asignada al cliente y usa Lista 1 como respaldo.
-- Módulo Clientes separado de Productos: alta, edición, búsqueda, activos/ocultos y asignación de `lista_precio`.
-- Perfil fiscal opcional con razón social, documento, condición IVA, domicilio fiscal, localidad, provincia, código postal y email.
-- Indicador calculado `Sin datos fiscales`, `Datos fiscales incompletos` o `Listo para facturar`.
-- El Script agrega las columnas fiscales faltantes al final de `clientes`, sin insertar, mover ni renombrar las columnas que consume D9 Pedidos.
-- Guardado defensivo por encabezado: solo se actualizan los campos administrados del cliente y se preservan columnas ajenas.
-- Acceso directo desde cada ficha de cliente a su cuenta corriente.
-- Administración de ofertas en una hoja `ofertas`, con precio, vigencia y estado, sin modificar las listas normales.
-- En comprobantes, una oferta vigente se informa al agregar el producto y puede aplicarse o quitarse por línea.
-
-## Arquitectura
-
-```text
-D9 Gestión (Cloudflare Pages)
-        ↓
-D9 Gestión Script (Apps Script separado)
-        ├── lee → Sheet central D9
-        ├── administra productos, precios y clientes → Sheet central D9
-        └── registra comprobantes/cobranzas → Sheet D9 Gestión
-```
-
-No usa Firebase. Para publicar ofertas en D9 Pedidos se actualiza `D9 Script PROD`; el Worker no cambia.
-
-## Archivos
-
-- `index.html`: estructura de la interfaz.
-- `styles.css`: estética D9 y adaptación escritorio/móvil.
-- `app.js`: navegación, sincronización, comprobantes, recibos e impresión.
-- `config.js`: URL del Apps Script de Gestión.
-- `apps-script/Code.gs`: backend separado.
-- `apps-script/README.md`: instalación del backend.
-
-## Puesta en marcha
-
-1. Instalar primero el backend siguiendo `apps-script/README.md`.
-2. Pegar la URL `/exec` del despliegue en `config.js`.
-3. Publicar estos archivos en un repositorio propio, por ejemplo `D9.Gestion`.
-4. Conectar ese repositorio a Cloudflare Pages.
-
-## Pendiente antes de producción
-
-- Probar impresión en la impresora real de Ale y ajustar el A5.
-- Incorporar estadísticas y usuarios de D9 Admin.
-- Coordinar listas dinámicas nuevas con D9 Pedidos y D9 Script PROD antes de crear Lista 4 o superiores.
-- Agregar exportación y respaldo.
-- Hacer pruebas de concurrencia y recuperación ante una escritura incompleta.
+### 13. Idempotencia Venta
+
+Intención por venta_id, autor/cliente/snapshot inmutables. Backend compara solicitud normalizada y plan; rechaza ID con distinto importe/cliente/medio. Confirmada devuelve resultado sin escritura. Doble gesto de Venta comparte selector/promesa y registro al imprimir/compartir.
+
+### 14. Idempotencia Cobro
+
+intencion_id CO-... estable por cobro, snapshot local previo al POST. Número/IDs reales se reservan una vez y se recuperan sin nuevo recibo/cheque.
+
+Lock de Gestión protege escrituras financieras, no bloquea Pedido convencional. Una intención parcial bloquea nuevas mutaciones de ese cliente hasta reconciliarla; también comprobantes/recibos/anulaciones/cambios de cheque de Gestión para no operar sobre dinero incompleto.
+
+### 15. Consulta de saldo desde Mostrador
+
+mostrador_cuenta por POST; Gestión valida token firmado contra Pedidos y usuario central activo/rol mostrador/cartera. Devuelve saldo real y últimos 20 movimientos con saldo acumulado. Ignora autor financiero falseado por navegador; sin permisos admin.
+
+### 16. Cobrar
+
+Home → Cuenta corriente → cliente propio → Cobrar → importe/medio/imputación → confirmar online. Parcial y crédito a favor según Gestión. Recibo real sólo después de confirmar. Respuesta A no reemplaza/cierra trabajo B posterior.
+
+### 17. Cheque desde Mostrador
+
+Venta/Cobro CHEQUE usan constructor/validación actuales. Plan reserva cheque real y pago asociado; reconciliar añade sólo ID faltante. WhatsApp/impresión no agregan otro; estados posteriores sólo en Gestión.
+
+### 18. Doble WhatsApp reutilizado
+
+Modal existente ampliado con título/finalizar/compartición opcional en Cobro. Rojo pendiente, verde al ABRIR; no verifica envío. Cobro puede compartir interno/cliente/ambos/ninguno; finalizar no borra Venta nueva ni registra dinero. Destinos del snapshot y configuración interna, no selección mutable posterior.
+
+### 19. Estado de cuenta sin cobrar
+
+ENVIAR POR WHATSAPP vuelve a consultar cuenta, prepara cliente/fecha/movimientos/saldo para su teléfono. Sólo lectura/mensaje: cero recibos/pagos/cheques/movimientos.
+
+### 20. Sin teléfono
+
+Editor existente de Pedidos, sesión válida y cartera. Se guarda realmente en ficha o puede omitirse; destino cliente omitido no es pendiente obligatorio. No bloquea/revierte registro confirmado. Respuesta tardía no cambia cliente/modal de otra operación.
+
+### 21. Timeout/error
+
+Sin éxito/recibo prematuro. Snapshot/intención local → Verificar resultado → backend no existe/PREPARADA/CONFIRMADA. Confirmada recupera sin escribir; ausente/parcial pide acción explícita para reintentar/completar mismo ID/plan.
+
+Sheets distintas NO son transacción atómica. Diario persiste plan antes de filas económicas; recuperación por finanzas_item e IDs de Gestión. Plan parcial bloquea nuevas mutaciones del cliente hasta reconciliar, no se oculta ni se reemplaza con otra intención.
+
+Finanzas siempre online, sin cola de dinero. Offline conserva carrito y rechaza registro; Pedido convencional mantiene cola/sincronización. No borrar datos locales con intenciones inciertas. Recuperar desde Cuenta corriente → Verificación y comprobantes del dispositivo original.
+
+### 22. Históricos
+
+Sin intención/condición no se inventa medio/deuda/recibo. Consulta/impresión existentes conservadas y documento posterior con circuito anterior. Endpoint nuevo rechaza asignación financiera retroactiva de ID existente. Sin migración histórica automática.
+
+### 23. Archivos modificados
+
+Gestión: **app.js, config.js, sw.js, apps-script/Code.gs, apps-script/Code.txt, README.md**.
+
+app.js: procedencia documental, pagos/saldo/NC vinculados a Venta, aviso anulación documental, etiquetas reales y refresco financiero localizado. config.js/sw.js: versión/cache. No cambiaron index.html/styles.css ni generadores PDF, precios, Ofertas/importador.
+
+Pedidos, en SU ZIP: app.js, nuevo finance.js, styles.css, index.html, manifest.json, sw.js, sus dos Script y README. Allí se detalla el circuito propio.
+
+Sin cambios a Admin/Worker/Fiscal, fix Pedido A→B→C, IDs/ofertas/búsqueda de los baselines.
+
+### 24. Scripts modificados
+
+**Sí, ambos requieren actualización.** Pedidos: login/token, bootstrap sin claves, clientes autenticados, Usuarios legacy bloqueados, rechazo de Venta financiera por ruta legacy. Gestión: APIs mostrador/autorización, registro financiero idempotente/recuperable, documentación/anulación por procedencia.
+
+actividad_revision incorpora finanzas_revision y existe lectura autenticada finanzas de tablas ya visibles a usuarios autorizados para emitir. Mismo polling 15s refresca CC/Recibos/Cheques aunque sólo haya un cobro; sin timer nuevo ni reiniciar draft/modal/filtros. Token Pedidos no habilita esa administración ni Usuarios.
+
+### 25. Versiones finales
+
+**Pedidos v1.5.35 PROD / Gestión v0.19.0 PROD**, ZIPs completos separados y Scripts propios. Sólo un README informativo por ZIP; Code.txt es código, Gestión conserva licencia legal PDF.js.
+
+### 26. Pruebas realizadas
+
+Pasaron **23 pruebas backend** con Scripts reales/Sheets simuladas y **14 frontend/estado** con Pedidos real/respuestas controladas:
+
+- Bootstrap sin claves, login/firma/token adulterado, clave incorrecta/revocación, rol/cartera/privilegios. update_usuarios/upsert_usuarios rechazados incluso token Pedidos admin. Gestión admin edita Usuarios; vendedor/sin token no.
+- CC $50.000 + documento = $50.000; efectivo + documento = $0; CC $50.000 + cobro imputado $20.000 + documento = $30.000; cheque único sin doble deuda.
+- Transferencia/referencias, parciales/crédito a favor, cheque/rechazo/reversión, IDs/importe/cliente inmutables, recibos normales/A cuenta.
+- Documento financiero rechaza cambiar cliente/total/nuevo cobro, anularlo conserva saldo; NC reduce/restaura mismo origen y limita devoluciones entre documentos repetidos.
+- Decimales/ofertas históricas, agrupación venta_id, histórico sin efecto retroactivo.
+- Fallos parciales tras escribir ventas/recibos/pagos/cheques/movimientos/diario, reconciliación sin duplicar.
+- Saldo real, revisión detecta cobro sin Venta nueva, token mostrador sin acceso administrativo.
+- Caché saneada/pendientes preservados, cancelar cero escrituras, offline sin cola dinero, doble gesto un registro, WhatsApp reutilizado/optional Cobro, snapshot/destinos/recibo real.
+- Cobro/consulta A tardía conserva B/nueva Venta, autor original del log tras cambiar usuario.
+- **Pedido A → B → C; confirmar B y luego A: C mantiene exactamente cliente/productos/cantidades/notas/oferta-precio.** Código protegido de envío/callback/pendientes comparado con base.
+- Tests existentes localizados contra carpetas nuevas: búsqueda (32 combinaciones y control Generar comprobante) e histórico/agrupación/filtros/acciones/navegación/responsive de Ventas.
+
+Sin Sheets/dinero reales. Responsive validado estructuralmente; **sin prueba visual automatizada: entorno sin Chromium**. Pendientes revisión física PC/móvil y Android/WhatsApp, instalación/piloto. No se afirma auditoría/regresión general.
+
+## Piloto controlado antes de dinero real
+
+Cliente de prueba de cartera mostrador, movimientos identificables:
+
+1. Login nuevo, Pedido offline/pendientes conservados, Usuarios Gestión admin funciona/editor viejo Admin rechaza.
+2. Cuatro escenarios financieros indicados; misma CC en ambas apps y saldo antes/después de documento.
+3. Cobros parciales por tres medios, recibo/pagos/cheque reales, A cuenta vs imputación específica.
+4. Cancelación cero cambios, doble toque un registro, pérdida de respuesta verificar mismo ID sin nuevo envío comercial.
+5. Crear/anular documento de Venta financiera no duplica/revierte saldo; histórico conserva circuito anterior.
+6. Doble WhatsApp, omitir teléfono/recibo opcional, finalizar limpia sólo Venta correcta, impresión/precios/ofertas conservados.
+7. PC/móvil: Home/cuenta/modales/cheque, retorno WhatsApp y respuestas tardías. Vendedor normal Pedido A→B→C con respuestas fuera de orden.
+
+## Seguridad y vuelta atrás
+
+Alcance limitado a autenticación Pedidos y funciones autorizadas. No migra almacenamiento histórico de claves en Sheet ni endurece todas las rutas legacy; no es seguridad general. Rotar claves expuestas/revisar despliegues viejos bajo autorización antes de dinero real.
+
+**Con Ventas financieras reales, no reinstalar backend anterior sin coordinación:** podría reabrir rutas/contraseñas o duplicar/revertir dinero al documentar/anular. No restaurar automáticamente Sheets desde copia vieja: perdería cobros posteriores. Una reversión visual debe conservar backends seguros y trazabilidad o acordarse previamente.
