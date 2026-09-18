@@ -48,6 +48,7 @@
           <button data-view="cuentas"><span>👥</span>Cta. cte.</button>
           <button data-view="recibos"><span>💵</span>Recibos</button>
           <button id="btnMore" class="mobile-more" type="button"><span>☰</span>Más</button>
+          <button class="desktop-only" data-view="ventas"><span>🛒</span>Ventas</button>
           <button class="desktop-only" data-view="cheques"><span>🏦</span>Cheques</button>
           <button class="desktop-only" data-view="maestros"><span>📦</span>Productos y precios</button>
           <button class="desktop-only" data-view="publicidad"><span>🖼️</span>Publicidad</button>
@@ -84,6 +85,20 @@
             <div class="orders-toolbar"><p id="ordersSummary" class="list-summary">Sin pedidos cargados.</p><div class="row-actions"><button id="btnOrdersPdf" class="btn secondary" type="button">📄 PDF A4</button><button id="btnOrdersWhatsApp" class="btn secondary" type="button">🧾 WhatsApp</button></div></div>
           </section>
           <div id="ordersList" class="card-list empty">Sin pedidos para mostrar.</div>
+        </section>
+
+        <section id="view-ventas" class="view">
+          <div class="page-head"><div><h2>Ventas</h2><p>Ventas registradas desde D9 Pedidos.</p></div><button id="btnReloadSales" class="btn secondary" type="button">↻ Actualizar</button></div>
+          <section class="panel sales-filter-panel">
+            <div class="filters sales-filters">
+              <input id="salesSearch" type="search" placeholder="Buscar por cliente o ID de venta" autocomplete="off">
+              <label>Desde<input id="salesFrom" type="date"></label>
+              <label>Hasta<input id="salesTo" type="date"></label>
+              <label>Vendedor / usuario<select id="salesSeller"><option value="">Todos</option></select></label>
+            </div>
+            <div class="sales-toolbar"><p id="salesSummary" class="list-summary">Elegí un período para consultar ventas.</p><button id="btnAllSales" class="mini-btn" type="button">Todo el historial</button></div>
+          </section>
+          <div id="salesList" class="card-list empty">Cargando ventas…</div>
         </section>
 
         <section id="view-operaciones" class="view">
@@ -346,6 +361,7 @@
   <dialog id="moreDialog" class="dialog more-dialog">
     <div class="dialog-head"><div><small>GESTIÓN</small><h2>Más opciones</h2></div><button type="button" class="dialog-close" data-close="moreDialog">×</button></div>
     <div class="more-menu">
+      <button type="button" data-go="ventas"><span>🛒</span><div><strong>Ventas</strong><small>Histórico de ventas de D9 Pedidos</small></div><b>›</b></button>
       <button type="button" data-go="cheques"><span>🏦</span><div><strong>Cheques</strong><small>Vencimientos y estados</small></div><b>›</b></button>
       <button type="button" data-go="maestros"><span>📦</span><div><strong>Productos y precios</strong><small>Administración de la Sheet original</small></div><b>›</b></button>
       <button type="button" data-go="publicidad"><span>🖼️</span><div><strong>Publicidad</strong><small>Banners y carrusel de D9 Pedidos</small></div><b>›</b></button>

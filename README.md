@@ -1,5 +1,14 @@
 # D9 Gestión
 
+## v0.18.1-prod
+
+- Agrega una sección `Ventas` con histórico, búsqueda por cliente/venta_id, período y vendedor.
+- Conserva las acciones de impresión, creación de comprobante y reutilización protegida de v0.18.0.
+- Uniforma el scroll interno de Pedidos recientes, Cobranzas pendientes y Ventas recientes en escritorio, manteniendo los encabezados visibles.
+- Conserva en móvil el Home apilado y ubica Ventas dentro de `Más`.
+
+Versión actual: `v0.18.1-prod`, conectada al despliegue propio de **D9 Gestión**.
+
 ## v0.17.2-prod
 
 Corrección localizada al compartir el PDF de Ofertas: la confirmación toma el valor actual del mensaje editable y lo entrega junto con el archivo en una única llamada a Web Share. Si el mensaje queda vacío, comparte solamente el PDF.
@@ -22,8 +31,6 @@ Corrección localizada al compartir el PDF de Ofertas: la confirmación toma el 
 - Cambio exclusivamente frontend; Apps Script sin modificaciones.
 
 Aplicación web independiente para la gestión comercial de Distribuidora D9.
-
-Versión actual: `v0.16.0-prod`, conectada al despliegue propio de **D9 Gestión**.
 
 ## v0.16.0-prod
 
