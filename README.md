@@ -1,13 +1,20 @@
 # D9 Gestión
 
+## v0.18.2-prod
+
+- La búsqueda textual de Lista de precios utiliza solamente código/ID y nombre/descripción.
+- Categoría y Marca continúan funcionando como filtros explícitos e independientes.
+- Generar comprobante conserva sin cambios su criterio correcto de búsqueda.
+- Cambio exclusivamente frontend; Apps Script no fue modificado.
+
+Versión actual: `v0.18.2-prod`, conectada al despliegue propio de **D9 Gestión**.
+
 ## v0.18.1-prod
 
 - Agrega una sección `Ventas` con histórico, búsqueda por cliente/venta_id, período y vendedor.
 - Conserva las acciones de impresión, creación de comprobante y reutilización protegida de v0.18.0.
 - Uniforma el scroll interno de Pedidos recientes, Cobranzas pendientes y Ventas recientes en escritorio, manteniendo los encabezados visibles.
 - Conserva en móvil el Home apilado y ubica Ventas dentro de `Más`.
-
-Versión actual: `v0.18.1-prod`, conectada al despliegue propio de **D9 Gestión**.
 
 ## v0.17.2-prod
 

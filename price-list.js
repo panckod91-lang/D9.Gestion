@@ -29,7 +29,7 @@ function priceListBrands(){
 }
 function getPriceListFilteredProducts(){
   ensurePriceListState();const term=state.priceListSearch,cat=state.priceListCategory,brands=state.priceListBrands;
-  return priceListProductsSource().filter(p=>matchesSearch([p.nombre,p.categoria,p.marca,priceListProductCode(p)],term)&&(!cat||String(p.categoria||"")===cat)&&(!brands.length||brands.includes(priceListBrand(p)))).sort((a,b)=>{
+  return priceListProductsSource().filter(p=>matchesSearch([priceListProductCode(p),p.nombre],term)&&(!cat||String(p.categoria||"")===cat)&&(!brands.length||brands.includes(priceListBrand(p)))).sort((a,b)=>{
     const ca=priceListCleanCategory(a.categoria||"Sin categoría"),cb=priceListCleanCategory(b.categoria||"Sin categoría");
     return !cat&&ca!==cb?ca.localeCompare(cb,"es",{sensitivity:"base",numeric:true}):priceListSortName(a,b);
   });
