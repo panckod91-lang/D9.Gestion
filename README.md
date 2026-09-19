@@ -1,6 +1,15 @@
-# D9 Gestión v0.19.0 PROD
+# D9 Gestión v0.19.1 PROD
 
-Etapa financiera coordinada con Pedidos v1.5.35. Bases reales: Gestión v0.18.2 y Pedidos v1.5.34. Este ZIP contiene sólo Gestión y su Script; Pedidos tiene su entrega propia. No se publicó ni se modificó producción.
+Afinamiento localizado sobre Gestión v0.19.0, coordinado con Pedidos v1.5.36. Este ZIP contiene sólo Gestión y una copia sin cambios de su Script. No se publicó ni se modificó producción.
+
+## Actualización desde v0.19.0
+
+- Reemplazar únicamente el frontend completo de Gestión.
+- **No hace falta actualizar Apps Script**: `Code.gs` y `Code.txt` son idénticos a v0.19.0.
+- **No ejecutar `setupD9Gestion()`** ni alterar propiedades, permisos, secretos, IDs o contadores.
+- Ventas recientes y el histórico incorporan `Ver` mediante un único detalle compartido, siempre con precios/subtotales históricos.
+- Pedidos, Cobranzas y Ventas recientes comparten scroll interno visible sólo en escritorio; sus encabezados quedan fuera del área desplazable. Móvil conserva el scroll natural de la página.
+- La oferta no se infiere: la hoja `ventas` no conserva un indicador histórico separado, por lo que el detalle no compara contra precios actuales.
 
 ## Resultado e instalación
 
@@ -155,11 +164,11 @@ actividad_revision incorpora finanzas_revision y existe lectura autenticada fina
 
 ### 25. Versiones finales
 
-**Pedidos v1.5.35 PROD / Gestión v0.19.0 PROD**, ZIPs completos separados y Scripts propios. Sólo un README informativo por ZIP; Code.txt es código, Gestión conserva licencia legal PDF.js.
+**Pedidos v1.5.36 PROD / Gestión v0.19.1 PROD**, ZIPs completos separados y Scripts propios. En este cierre ambos Scripts quedan idénticos a v1.5.35/v0.19.0. Sólo un README informativo por ZIP; Code.txt es código, Gestión conserva licencia legal PDF.js.
 
 ### 26. Pruebas realizadas
 
-Pasaron **23 pruebas backend** con Scripts reales/Sheets simuladas y **14 frontend/estado** con Pedidos real/respuestas controladas:
+Pasaron **23 pruebas backend** con Scripts reales/Sheets simuladas, **14 frontend/estado** con Pedidos real/respuestas controladas y pruebas localizadas del cierre:
 
 - Bootstrap sin claves, login/firma/token adulterado, clave incorrecta/revocación, rol/cartera/privilegios. update_usuarios/upsert_usuarios rechazados incluso token Pedidos admin. Gestión admin edita Usuarios; vendedor/sin token no.
 - CC $50.000 + documento = $50.000; efectivo + documento = $0; CC $50.000 + cobro imputado $20.000 + documento = $30.000; cheque único sin doble deuda.
@@ -172,6 +181,9 @@ Pasaron **23 pruebas backend** con Scripts reales/Sheets simuladas y **14 fronte
 - Cobro/consulta A tardía conserva B/nueva Venta, autor original del log tras cambiar usuario.
 - **Pedido A → B → C; confirmar B y luego A: C mantiene exactamente cliente/productos/cantidades/notas/oferta-precio.** Código protegido de envío/callback/pendientes comparado con base.
 - Tests existentes localizados contra carpetas nuevas: búsqueda (32 combinaciones y control Generar comprobante) e histórico/agrupación/filtros/acciones/navegación/responsive de Ventas.
+- `Ver` aparece en Home y Ventas, abre el mismo detalle, muestra condición, relación documental y precio histórico sin revalorizar contra el maestro.
+- Las tres listas del Home conservan tamaños aprobados y comparten una regla de scroll sólo para escritorio.
+- Cuenta corriente de Mostrador mantiene visible el cliente elegido y permite volver explícitamente a `Cambiar cliente`.
 
 Sin Sheets/dinero reales. Responsive validado estructuralmente; **sin prueba visual automatizada: entorno sin Chromium**. Pendientes revisión física PC/móvil y Android/WhatsApp, instalación/piloto. No se afirma auditoría/regresión general.
 
