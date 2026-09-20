@@ -390,6 +390,7 @@
         <div class="section-head"><div><h3>D9 Pedidos</h3><p>Conserva la lógica que ya utilizan vendedores, mostrador y clientes.</p></div></div>
         <div class="form-grid">
           <label>Tipo de usuario<select id="userRole"><option value="vendedor">Vendedor</option><option value="mostrador">Venta mostrador</option><option value="cliente">Cliente</option><option value="admin">Admin</option></select></label>
+          <label id="userClientScopeField">Alcance de clientes<select id="userClientScope"><option value="PROPIOS">Sólo sus clientes</option><option value="TODOS">Todos los clientes</option></select><small>Permite consultar y usar clientes. No cambia el vendedor asignado ni las comisiones.</small></label>
           <label id="userClientField">Cliente vinculado<select id="userClient"><option value="">Sin cliente vinculado</option></select></label>
           <label id="userColor1Field">Color 1<input id="userColor1" type="color" value="#DDEEFF"></label>
           <label id="userColor2Field">Color 2<input id="userColor2" type="color" value="#FFFFFF"></label>
