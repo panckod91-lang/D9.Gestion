@@ -1,3 +1,3 @@
 D9 GESTIÓN
-Versión 0.19.3
-Este paquete corresponde a D9 Gestión. No confundir con D9 Pedidos.
+Versión v0.19.4
+Este paquete corresponde exclusivamente a D9 Gestión. No confundir con D9 Pedidos.

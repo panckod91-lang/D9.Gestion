@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=191">
+  <link rel="stylesheet" href="styles.css?v=194">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -34,6 +34,7 @@
       <div class="top-title"><small>DISTRIBUIDORA 9</small><strong id="viewTitle">Gestión</strong></div>
       <div class="top-actions">
         <span id="syncBadge" class="sync-badge">Sincronizando…</span>
+        <button id="btnTestMode" class="test-mode-toggle hidden" type="button">🧪 Modo pruebas</button>
         <button id="btnRefresh" class="icon-button" title="Actualizar">↻</button>
         <button id="btnLogout" class="icon-button" title="Salir">⇥</button>
       </div>
@@ -61,6 +62,7 @@
       </aside>
 
       <main class="content">
+        <div id="testModeBanner" class="test-mode-banner hidden" role="status"><strong>🧪 MODO PRUEBAS — SIN VALOR OPERATIVO</strong><span>Estás viendo únicamente datos del laboratorio TEST.</span><button id="btnReviewTest" type="button">Revisar histórico TEST</button></div>
         <section id="view-home" class="view active">
           <div class="welcome-row"><div><small id="todayLabel"></small><h2>Hola, <span id="welcomeName">Ale</span></h2><p>Esto es lo importante de hoy.</p></div><button id="btnNewOperation" class="btn primary big">＋ Nuevo comprobante</button></div>
           <div class="kpi-grid">
@@ -673,11 +675,12 @@ Distribuidora D9</textarea></label>
   <dialog id="detailDialog" class="dialog"><div class="dialog-head"><div><small>DETALLE</small><h2 id="detailTitle"></h2></div><button type="button" class="dialog-close" data-close="detailDialog">×</button></div><div id="detailBody"></div><div id="detailActions" class="dialog-actions"></div></dialog>
   <dialog id="priceListCategoryDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Categoría</h2></div><button type="button" class="dialog-close" data-close="priceListCategoryDialog">×</button></div><div id="priceListCategoryOptions" class="price-filter-options"></div></dialog>
   <dialog id="priceListBrandDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Marcas</h2></div><button type="button" class="dialog-close" data-close="priceListBrandDialog">×</button></div><p class="helper">Podés combinar una o varias marcas.</p><div id="priceListBrandOptions" class="price-filter-options"></div><div class="dialog-actions"><button id="btnApplyPriceListBrands" type="button" class="btn primary">Aplicar marcas</button></div></dialog>
+  <dialog id="testReviewDialog" class="dialog wide-dialog"><div class="dialog-head"><div><small>SOLO SUPERADMIN</small><h2>Revisión de clientes TEST</h2></div><button type="button" class="dialog-close" data-close="testReviewDialog">×</button></div><p>Vista previa de sólo lectura. Seleccioná IDs únicamente tras verificar el respaldo de las dos Sheets. Los nombres sugieren candidatos: no se clasifican solos.</p><div id="testReviewCandidates" class="test-review-list"></div><p id="testReviewCounts" class="helper"></p><p id="testReviewAmbiguous" class="helper"></p><p id="testReviewClosures" class="helper"></p><div class="dialog-actions"><button type="button" class="btn secondary" data-close="testReviewDialog">Cancelar</button><button id="btnClassifyTestClients" type="button" class="btn primary">Clasificar IDs seleccionados</button></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=191"></script>
+  <script src="config.js?v=194"></script>
   <script src="operations-ui.js?v=171"></script>
   <script src="price-list.js?v=171"></script>
   <script src="offers-pdf.js?v=172"></script>
-  <script src="app.js?v=191"></script>
+  <script src="app.js?v=194"></script>
 </body>
 </html>

@@ -36,6 +36,7 @@ const state = {
   source: {clientes:[],clientes_admin:[],productos:[],productos_admin:[],price_lists:[],usuarios:[],usuarios_admin:[],pedidos:[],ventas:[],ofertas:[],publicidad:[]},
   gestion: {operaciones:[],items:[],recibos:[],pagos:[],cheques:[],movimientos:[],comisiones_reglas:[],comisiones_cierres:[],comisiones_detalle:[],productos_log:[],config:{}},
   currentView:"home",
+  testMode:false,
   draftItems:[],
   clientSearchResults:[],
   clientSearchIndex:0,
@@ -53,6 +54,7 @@ const state = {
   ordersRangeActive:false,
   ordersRevision:"",
   salesRevision:"",
+  scopeRevision:"",
   salesHistory:[],
   salesHistoryLoaded:false,
   bulkPriceChanges:[],
@@ -83,7 +85,7 @@ async function readDataCache(){
 async function writeDataCache(data){
   try{const db=await openDataCache();await new Promise((resolve,reject)=>{const tx=db.transaction(DATA_CACHE.store,"readwrite");tx.objectStore(DATA_CACHE.store).put(data,DATA_CACHE.key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close()}catch(_){}
 }
-function cacheUserKey(){return String(state.user?.id||state.user?.usuario||"")}
+function cacheUserKey(){return String(state.user?.id||state.user?.usuario||"")+"|"+(state.testMode?"TEST":"REAL")}
 function currentSnapshot(){return {user:state.user,permissions:state.permissions,source:state.source,gestion:state.gestion}}
 function saveCurrentCache(){void writeDataCache({userKey:cacheUserKey(),savedAt:Date.now(),data:currentSnapshot()})}
 
@@ -115,7 +117,7 @@ async function parseResponse(res) {
 }
 async function apiPost(action, payload={}) {
   if (!apiReady()) throw new Error("Falta configurar la URL de D9 Gestión");
-  const body = JSON.stringify({action,token:state.token,...payload});
+  const body = JSON.stringify({action,token:state.token,...payload,ambito:state.testMode?"TEST":"REAL"});
   const res = await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
   return parseResponse(res);
 }
@@ -139,7 +141,7 @@ function saveSession(data) {
   state.token=data.token; state.user=data.user;
   localStorage.setItem(STORAGE.token,state.token); localStorage.setItem(STORAGE.user,JSON.stringify(state.user));
 }
-function clearSession() { state.token=""; state.user=null; localStorage.removeItem(STORAGE.token); localStorage.removeItem(STORAGE.user); }
+function clearSession() { state.token=""; state.user=null; state.testMode=false; localStorage.removeItem(STORAGE.token); localStorage.removeItem(STORAGE.user); }
 function showLogin(message="") {
   stopOrderPolling();
   $("#loginScreen").classList.remove("hidden"); $("#app").classList.add("hidden");
@@ -153,6 +155,7 @@ function showApp() {
   const version=String(CONFIG.APP_VERSION||"versión sin identificar");
   if($("#appVersion"))$("#appVersion").textContent=version;
   if($("#appVersionMore"))$("#appVersionMore").textContent=`D9 Gestión · ${version}`;
+  renderTestModeD9();
 }
 
 async function login(event) {
@@ -166,8 +169,10 @@ async function login(event) {
 }
 
 function applyBootstrap(data) {
+  if(state.testMode&&data.permissions?.ambito!=="TEST")throw new Error("El servidor no confirmó el ámbito TEST. Verificá primero su despliegue.");
   if(data.user){state.user=data.user;localStorage.setItem(STORAGE.user,JSON.stringify(state.user));showApp()}
-  state.permissions={source_admin:!!data.permissions?.source_admin,gestion_admin:!!data.permissions?.gestion_admin,super_admin:!!data.permissions?.super_admin,can_issue_documents:!!data.permissions?.can_issue_documents,source_writes_enabled:!!data.permissions?.source_writes_enabled};
+  if(data.permissions?.ambito_revision)state.scopeRevision=String(data.permissions.ambito_revision);
+  state.permissions={ambito:data.permissions?.ambito||"REAL",source_admin:!!data.permissions?.source_admin,gestion_admin:!!data.permissions?.gestion_admin,super_admin:!!data.permissions?.super_admin,can_issue_documents:!!data.permissions?.can_issue_documents,source_writes_enabled:!!data.permissions?.source_writes_enabled};
   state.source={
     clientes:data.source?.clientes||[], clientes_admin:data.source?.clientes_admin||data.source?.clientes||[], productos:data.source?.productos||[], productos_admin:data.source?.productos_admin||data.source?.productos||[], price_lists:data.source?.price_lists||[{id:"lista_1",nombre:"Lista 1"},{id:"lista_2",nombre:"Lista 2"},{id:"lista_3",nombre:"Lista 3"}], usuarios:data.source?.usuarios||[], usuarios_admin:data.source?.usuarios_admin||data.source?.usuarios||[], pedidos:state.ordersRangeActive?state.source.pedidos:(data.source?.pedidos||[]), ventas:data.source?.ventas||state.source.ventas||[], ofertas:data.source?.ofertas||[], publicidad:data.source?.publicidad||[]
   };
@@ -177,7 +182,50 @@ function applyBootstrap(data) {
     operaciones:data.gestion?.operaciones||[], items:data.gestion?.items||[], recibos:data.gestion?.recibos||[], pagos:data.gestion?.pagos||[], cheques:data.gestion?.cheques||[], movimientos:data.gestion?.movimientos||[], comisiones_reglas:data.gestion?.comisiones_reglas||[], comisiones_cierres:data.gestion?.comisiones_cierres||[], comisiones_detalle:data.gestion?.comisiones_detalle||[], productos_log:data.gestion?.productos_log||[], config:data.gestion?.config||{}
   };
   state.gestion.operaciones.forEach(operation=>operation.numero=canonicalOperationNumber(operation.numero,operation.tipo));
-  hydrateConfig();applyPermissionsUI();populateSelectors();hydrateMasterFilters();hydrateClientFilters();renderAll();
+  hydrateConfig();applyPermissionsUI();renderTestModeD9();populateSelectors();hydrateMasterFilters();hydrateClientFilters();renderAll();
+}
+
+function renderTestModeD9(){
+  const allowed=state.permissions?.super_admin===true;
+  const button=$("#btnTestMode"),banner=$("#testModeBanner");
+  if(button){button.classList.toggle("hidden",!allowed);button.textContent=state.testMode?"🧪 Salir de pruebas":"🧪 Modo pruebas";button.disabled=!state.token;}
+  if(banner)banner.classList.toggle("hidden",!allowed||!state.testMode);
+  document.body.classList.toggle("test-mode-d9",allowed&&state.testMode);
+  $$("#nav [data-view=maestros], #nav [data-view=usuarios], #nav [data-view=ofertas], #nav [data-view=publicidad], #nav [data-view=config]").forEach(el=>el.classList.toggle("hidden",allowed&&state.testMode));
+}
+async function toggleTestModeD9(){
+  if(!state.permissions?.super_admin)return;
+  const previous=state.testMode,button=$("#btnTestMode");button.disabled=true;
+  state.testMode=!previous;
+  try{
+    const data=await apiRead("bootstrap");
+    state.salesHistory=[];state.salesHistoryLoaded=false;state.ordersRangeActive=false;
+    applyBootstrap(data);saveCurrentCache();showView("home");
+    toast(state.testMode?"Laboratorio TEST activo.":"Volviste a los datos comerciales REAL.");
+  }catch(error){state.testMode=previous;renderTestModeD9();toast(error.message,"error")}
+  finally{button.disabled=false;}
+}
+async function reviewTestHistoryD9(){
+  if(!state.permissions?.super_admin)return;
+  try{
+    const data=await apiRead("test_preview"),dialog=$("#testReviewDialog");
+    $("#testReviewCandidates").innerHTML=(data.candidatos||[]).map(c=>`<label class="test-review-client"><input type="checkbox" data-test-client="${esc(c.id)}" data-test-name="${esc(c.nombre)}" ${c.ambito==="TEST"?"disabled checked":""}><span><strong>${esc(c.nombre)} · ID ${esc(c.id)}</strong><small>${esc([c.telefono,c.ciudad,c.ambito].filter(Boolean).join(" · "))}</small></span></label>`).join("")||"No hay nombres candidatos. Ninguna ficha fue clasificada.";
+    $("#testReviewCounts").textContent=`Saldo TEST identificado: ${money(data.saldo_identificado_test)} · Estimación con candidatos: ${money(data.saldo_estimado_candidatos)}. `+Object.entries(data.conteos||{}).map(([key,value])=>`${key}: ${value.identificables} identificables de ${value.total}`).join(" · ");
+    $("#testReviewAmbiguous").textContent=(data.ambiguos||[]).length?`${data.ambiguos.length} filas sin relación segura; revisar manualmente: `+(data.ambiguos||[]).map(x=>`${x.hoja} fila ${x.fila} (${x.cliente})`).join("; "):"Sin coincidencias de nombre ambiguas en los datos inspeccionados.";
+    $("#testReviewClosures").textContent=(data.cierres_a_revisar||[]).length?"Cierres de comisión históricos potencialmente contaminados: "+data.cierres_a_revisar.map(c=>`${c.cierre_id} (${c.lineas_test} líneas)`).join(", "):"No se identificaron líneas TEST en cierres existentes.";
+    dialog.showModal();
+  }catch(error){toast(error.message,"error")}
+}
+async function classifyTestClientsD9(){
+  const selected=$$("#testReviewCandidates input[data-test-client]:checked:not(:disabled)").map(el=>({id:el.dataset.testClient,nombre:el.dataset.testName}));
+  if(!selected.length)return toast("Seleccioná fichas sin clasificar.","error");
+  if(!confirm(`¿Ya respaldaste ambas Sheets y revisaste los ${selected.length} IDs seleccionados? La clasificación modifica clientes y afecta cómo se consulta su histórico.`))return;
+  const phrase=prompt("Escribí CLASIFICAR CLIENTES TEST para confirmar los IDs revisados:");
+  if(phrase!=="CLASIFICAR CLIENTES TEST")return;
+  const button=$("#btnClassifyTestClients");button.disabled=true;
+  try{const result=await apiPost("test_classify",{clientes:selected,confirmacion:phrase});$("#testReviewDialog").close();toast(`${result.clasificados.length} clientes clasificados. Revisá los saldos en ambos ámbitos.`);await loadAll();}
+  catch(error){toast(error.message,"error")}
+  finally{button.disabled=false;}
 }
 
 function stopOrderPolling(){
@@ -198,6 +246,7 @@ async function pollOrders(){
   const pollingToken=state.token;
   try{
     const check=await apiRead("actividad_revision"),ordersRevision=String(check.pedidos_revision||""),salesRevision=String(check.ventas_revision||"");
+    if(check.ambito_revision&&String(check.ambito_revision)!==state.scopeRevision){await loadAll({silent:true});return;}
     const financeRevision=String(check.finanzas_revision||""),financeChanged=canIssueDocuments()&&!!financeRevision&&financeRevision!==state.financeRevision;
     const ordersChanged=!state.ordersRangeActive&&!!ordersRevision&&ordersRevision!==state.ordersRevision,salesChanged=!!salesRevision&&salesRevision!==state.salesRevision;if(!ordersChanged&&!salesChanged&&!financeChanged)return;
     const previousOrderIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||""))),previousSaleIds=new Set(state.source.ventas.map(sale=>String(sale.venta_id||"")));
@@ -1312,14 +1361,14 @@ function detailHeader(items){return `<div class="detail-grid">${items.map(([a,b]
 function itemsTable(items){const showDiscount=(items||[]).some(item=>Object.prototype.hasOwnProperty.call(item,"descuento_pct"));return `<table class="detail-lines"><thead><tr><th>Producto</th><th>Cant.</th><th>Unit.</th>${showDiscount?"<th>Dto.</th>":""}<th>Subtotal</th></tr></thead><tbody>${items.map(i=>`<tr><td>${esc(i.nombre||i.producto||i.detalle)}</td><td>${number(i.cantidad||i.total)}</td><td>${money(i.precio||i.precio_unitario)}</td>${showDiscount?`<td>${number(numeric(i.descuento_pct))}%</td>`:""}<td>${money(i.total_item!==undefined&&i.total_item!==""?i.total_item:storedLineSubtotal(i))}</td></tr>`).join("")}</tbody></table>`}
 function openDetail(title,body,actions=""){ $("#detailDialog").classList.remove("docs-detail"); $("#detailTitle").textContent=title;$("#detailBody").innerHTML=body;$("#detailActions").innerHTML=actions;$("#detailDialog").showModal(); }
 
-function printWindow(title, body, format="A5") {const win=window.open("","_blank");if(!win)return toast("El navegador bloqueó la impresión.","error");win.document.open();win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:${format} portrait;margin:8mm}*{box-sizing:border-box}body{font:12px Arial,sans-serif;color:#101d2b;margin:0}.head{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #17365c;padding-bottom:8px}.head h1{margin:0;font-size:21px}.head p{margin:2px 0}.doc{text-align:right}.doc strong{font-size:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin:10px 0;padding:8px;background:#f2f6f8}.meta div{display:flex;justify-content:space-between;gap:8px}table{width:100%;border-collapse:collapse}th,td{padding:5px;border-bottom:1px solid #ccd6dc;text-align:left}th{font-size:10px;text-transform:uppercase}th:nth-child(n+2),td:nth-child(n+2){text-align:right}.check-box{margin-top:9px;padding:8px;border:1px solid #bfcdd6;background:#f7fafb}.check-box>strong{display:block;margin-bottom:6px}.check-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:3px 10px}.check-grid span{color:#52616e}.check-grid b{text-align:right}.totals{margin:10px 0 0 auto;width:48%}.totals div{display:flex;justify-content:space-between;padding:4px}.totals .grand{font-size:16px;font-weight:bold;border-top:2px solid #17365c}.foot{margin-top:14px;border-top:1px solid #ccd6dc;padding-top:7px;font-size:10px;color:#52616e}.signature{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:28px}.signature div{border-top:1px solid #222;text-align:center;padding-top:4px}</style></head><body>${body}<script>setTimeout(()=>window.print(),350)<\/script></body></html>`);win.document.close();win.focus();}
+function printWindow(title, body, format="A5") {const win=window.open("","_blank");if(!win)return toast("El navegador bloqueó la impresión.","error");win.document.open();win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:${format} portrait;margin:8mm}*{box-sizing:border-box}body{font:12px Arial,sans-serif;color:#101d2b;margin:0}.head{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #17365c;padding-bottom:8px}.head h1{margin:0;font-size:21px}.head p{margin:2px 0}.doc{text-align:right}.doc strong{font-size:18px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin:10px 0;padding:8px;background:#f2f6f8}.meta div{display:flex;justify-content:space-between;gap:8px}table{width:100%;border-collapse:collapse}th,td{padding:5px;border-bottom:1px solid #ccd6dc;text-align:left}th{font-size:10px;text-transform:uppercase}th:nth-child(n+2),td:nth-child(n+2){text-align:right}.check-box{margin-top:9px;padding:8px;border:1px solid #bfcdd6;background:#f7fafb}.check-box>strong{display:block;margin-bottom:6px}.check-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:3px 10px}.check-grid span{color:#52616e}.check-grid b{text-align:right}.totals{margin:10px 0 0 auto;width:48%}.totals div{display:flex;justify-content:space-between;padding:4px}.totals .grand{font-size:16px;font-weight:bold;border-top:2px solid #17365c}.foot{margin-top:14px;border-top:1px solid #ccd6dc;padding-top:7px;font-size:10px;color:#52616e}.signature{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:28px}.signature div{border-top:1px solid #222;text-align:center;padding-top:4px}</style></head><body>${state.testMode?'<div style="padding:9px;border:3px solid #b91c1c;color:#b91c1c;text-align:center;font-weight:900;font-size:18px;margin-bottom:14px">PRUEBA — SIN VALOR OPERATIVO</div>':''}${body}<script>setTimeout(()=>window.print(),350)<\/script></body></html>`);win.document.close();win.focus();}
 function formatOperationNumber(value){
-  const raw=String(value||"").trim(),match=raw.match(/^([^0-9]*?)[-\s]*(\d+)$/);
+  const raw=String(value||"").trim();if(raw.startsWith("TEST-"))return raw;const match=raw.match(/^([^0-9]*?)[-\s]*(\d+)$/);
   if(!match)return raw;
   const prefix=(match[1]||"R").replace(/[-\s]+$/g,"").trim()||"R";
   return `${prefix} 0001-${match[2].padStart(8,"0").slice(-8)}`;
 }
-function canonicalOperationNumber(value,type){const raw=String(value||""),match=raw.match(/(\d+)\s*$/),prefix=({REMITO:"R",PROFORMA:"FPF",NOTA_VENTA:"NDV",NOTA_CREDITO:"NC"})[String(type||"").toUpperCase()];return prefix&&match?`${prefix}-${match[1].padStart(8,"0").slice(-8)}`:raw}
+function canonicalOperationNumber(value,type){const raw=String(value||"");if(raw.startsWith("TEST-"))return raw;const match=raw.match(/(\d+)\s*$/),prefix=({REMITO:"R",PROFORMA:"FPF",NOTA_VENTA:"NDV",NOTA_CREDITO:"NC"})[String(type||"").toUpperCase()];return prefix&&match?`${prefix}-${match[1].padStart(8,"0").slice(-8)}`:raw}
 function operationTypeLabel(value){return ({REMITO:"Remito",PROFORMA:"Factura pro forma",NOTA_VENTA:"Nota de venta",NOTA_CREDITO:"Nota de crédito"})[String(value||"").toUpperCase()]||String(value||"Comprobante").replace(/_/g," ")}
 function displayDocumentNumber(type,value){
   const operationTypes=["REMITO","PROFORMA","NOTA_VENTA","NOTA_CREDITO","COMPROBANTE"];
@@ -1355,6 +1404,7 @@ function printOperation(id){
   const credit=String(operation.tipo).toUpperCase()==="NOTA_CREDITO",payment=credit?{condition:`Ajuste sobre remito ${formatOperationNumber(operation.referencia_numero||"")}`,paid:0,saldo:0}:operationPaymentInfo(operation);
   const printable={
     title:`${operationTypeLabel(operation.tipo)} ${formatOperationNumber(operation.numero)}`,
+    test:state.testMode,
     kind:operationTypeLabel(operation.tipo),
     number:formatOperationNumber(operation.numero),
     date:formatDate(operation.fecha),
@@ -1386,7 +1436,7 @@ function printOperation(id){
 const data=${data};
 const rowMarkup=item=>\`<tr><td class="num">\${item.quantity}</td><td>\${escapeHtml(item.code)}</td><td class="description">\${escapeHtml(item.description)}</td><td class="num">\${item.unit}</td><td class="num">\${item.discount}</td><td class="num">\${item.amount}</td></tr>\`;
 function escapeHtml(value){return String(value??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\\"":"&quot;","'":"&#39;"}[c]))}
-function headerMarkup(part,total){return \`<header class="voucher-head"><div><div class="eyebrow">\${escapeHtml(data.kind)} · Comprobante interno</div><div class="client">\${escapeHtml(data.client)}</div></div><div class="doc"><strong>\${escapeHtml(data.number)}</strong><span>\${escapeHtml(data.date)}</span><div class="part">Parte \${part} de \${total}</div></div></header>\`}
+function headerMarkup(part,total){return \`<header class="voucher-head"><div><div class="eyebrow">\${data.test?'<span style="color:#b91c1c;font-weight:900">PRUEBA — SIN VALOR OPERATIVO · </span>':''}\${escapeHtml(data.kind)} · Comprobante interno</div><div class="client">\${escapeHtml(data.client)}</div></div><div class="doc"><strong>\${escapeHtml(data.number)}</strong><span>\${escapeHtml(data.date)}</span><div class="part">Parte \${part} de \${total}</div></div></header>\`}
 function tableMarkup(rows){return \`<table class="lines"><colgroup><col class="qty"><col class="code"><col><col class="unit"><col class="discount"><col class="amount"></colgroup><thead><tr><th class="num">Cant.</th><th>Código</th><th>Descripción</th><th class="num">P. unitario</th><th class="num">Dto.</th><th class="num">Subtotal</th></tr></thead><tbody>\${rows.map(rowMarkup).join("")}</tbody></table>\`}
 function footerMarkup(){return \`<footer class="footer"><div class="condition"><strong>Condición de pago: \${escapeHtml(data.condition)}</strong>\${data.notes?\`<div class="notes"><b>Observaciones:</b> \${escapeHtml(data.notes)}</div>\`:""}</div><div class="summary"><div><span>Subtotal</span><b>\${data.subtotal}</b></div>\${data.discountPct?\`<div><span>Descuento \${data.discountPct}%</span><b>-\${data.discount}</b></div>\`:""}<div class="grand"><span>Total</span><b>\${data.total}</b></div>\${data.paidValue>.005?\`<div><span>Pagado</span><b>\${data.paid}</b></div>\`:""}<div class="balance"><span>Saldo</span><b>\${data.balance}</b></div></div></footer>\`}
 function voucherMarkup(rows,part,total,final){return \`<article class="voucher \${final?"has-footer":""}">\${headerMarkup(part,total)}\${tableMarkup(rows)}\${final?footerMarkup():""}<div class="legal">Comprobante interno — no válido como factura.</div></article>\`}
@@ -1417,6 +1467,7 @@ function bindEvents(){
   $("#clientDialog").addEventListener("close",()=>{state.clientEditorOrigin=""});
   $("#loginForm").addEventListener("submit",login);$("#btnLogout").addEventListener("click",()=>{clearSession();showLogin()});$("#btnRefresh").addEventListener("click",loadAll);$("#homeLogo").addEventListener("click",()=>showView("home"));
   $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view,{fromMainNavigation:true})});document.addEventListener("click",e=>{const go=e.target.closest("[data-go]");if(go){$("#moreDialog")?.close();showView(go.dataset.go,{fromMainNavigation:true})}const close=e.target.closest("[data-close]");if(close)document.getElementById(close.dataset.close)?.close();const editProduct=e.target.closest("[data-edit-product]");if(editProduct)openProductEditor(editProduct.dataset.editProduct);const editClient=e.target.closest("[data-edit-client]");if(editClient)openClientEditor(editClient.dataset.editClient);const editUser=e.target.closest("[data-edit-user]");if(editUser)openUserEditor(editUser.dataset.editUser);const editCommission=e.target.closest("[data-user-commission]");if(editCommission)openCommissionEditor(editCommission.dataset.userCommission);const clientAccount=e.target.closest("[data-client-account]");if(clientAccount)openClientAccount(clientAccount.dataset.clientAccount);const editOffer=e.target.closest("[data-edit-offer]");if(editOffer)openOfferEditor(editOffer.dataset.editOffer);const draftOffer=e.target.closest("[data-draft-offer]");if(draftOffer)toggleDraftOffer(Number(draftOffer.dataset.draftOffer));const changeClient=e.target.closest("[data-receipt-client-change]");if(changeClient)startReceiptClientSearch();const rc=e.target.closest("[data-receipt-client]");if(rc)selectReceiptClient(rc.dataset.receiptClient);const oi=e.target.closest("[data-order-import]");if(oi){$("#detailDialog")?.close();openOperation(state.source.pedidos.find(o=>String(o.pedido_id)===String(oi.dataset.orderImport)))}const od=e.target.closest("[data-order-detail]");if(od)showOrderDetail(od.dataset.orderDetail);const op=e.target.closest("[data-operation-detail]");if(op){if($("#detailDialog")?.open)$("#detailDialog").close();showOperationDetail(op.dataset.operationDetail)}const credit=e.target.closest("[data-credit-note]");if(credit){if($("#detailDialog")?.open)$("#detailDialog").close();openCreditNote(credit.dataset.creditNote)}const closure=e.target.closest("[data-commission-closure]");if(closure)openCommissionClosure(closure.dataset.commissionClosure);const pp=e.target.closest("[data-operation-print]");if(pp)printOperation(pp.dataset.operationPrint);const oa=e.target.closest("[data-operation-annul]");if(oa)annulOperation(oa.dataset.operationAnnul);const ad=e.target.closest("[data-account-detail]");if(ad)showAccountDetail(ad.dataset.accountDetail);const ar=e.target.closest("[data-account-receipt]");if(ar){$("#detailDialog")?.close();openReceipt(ar.dataset.accountReceipt)}const rd=e.target.closest("[data-receipt-detail]");if(rd)showReceiptDetail(rd.dataset.receiptDetail);const rp=e.target.closest("[data-receipt-print]");if(rp)printReceipt(rp.dataset.receiptPrint);const cs=e.target.closest("[data-check-status]");if(cs)updateCheck(cs.dataset.checkStatus,cs.dataset.status)});
+  $("#btnTestMode").addEventListener("click",toggleTestModeD9);$("#btnReviewTest").addEventListener("click",reviewTestHistoryD9);$("#btnClassifyTestClients").addEventListener("click",classifyTestClientsD9);
   document.addEventListener("click",e=>{const financial=e.target.closest("[data-financial-credit]");if(financial)openFinancialCredit(financial.dataset.financialCredit);const resolve=e.target.closest("[data-resolve-commission]");if(resolve)openCommissionResolution(resolve.dataset.resolveCommission);const report=e.target.closest("[data-report-open]");if(report)openReport(report.dataset.reportOpen);if(e.target.closest("[data-report-back]"))showReportsHub()});
   document.addEventListener("click",e=>{const saleDetail=e.target.closest("[data-sale-detail]");if(saleDetail)showSaleDetail(saleDetail.dataset.saleDetail);const saleImport=e.target.closest("[data-sale-import]");if(saleImport){if($("#detailDialog")?.open)$("#detailDialog").close();requestSaleImport(saleImport.dataset.saleImport)}const salePrint=e.target.closest("[data-sale-print]");if(salePrint)printSale(salePrint.dataset.salePrint)});
   document.addEventListener("click",e=>{const card=e.target.closest("[data-receipt-card]");if(card&&!e.target.closest("button"))showReceiptDetail(card.dataset.receiptCard)});
