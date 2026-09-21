@@ -1,4 +1,12 @@
-# D9 Gestión v0.19.2 PROD
+# D9 Gestión v0.19.3 PROD
+
+## A.1 · Clientes compartidos para PROPIOS
+
+Las operaciones financieras de Mostrador reconocen la relación persistente `clientes_accesos`, manteniendo separado el acceso de uso respecto de `clientes.vendedor_id` y del permiso de edición.
+
+La primera aplicación de una intención financiera evita relecturas redundantes; reintentos y reconciliaciones conservan el camino idempotente completo. WhatsApp continúa disponible solamente después de la confirmación financiera.
+
+El Apps Script comienza con una identificación visible de D9 Gestión. No ejecutar `setupD9Gestion()`.
 
 Esta versión agrega la administración del alcance de clientes por usuario y el tratamiento seguro de coincidencias al crear clientes. No incorpora ninguna función del futuro ámbito TEST.
 
