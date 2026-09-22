@@ -1,6 +1,14 @@
-# D9 Gestión v0.19.4 · ámbito TEST
+# D9 Gestión v0.19.5 · Venta ocasional en efectivo
 
-D9 Pedidos permanece en v1.5.39; su frontend y Apps Script no se reemplazan en esta entrega.
+Actualizar conjuntamente con D9 Pedidos v1.5.40. El ámbito TEST y sus reglas de v0.19.4 permanecen sin cambios.
+
+## Venta Mostrador ocasional
+
+El backend admite únicamente la Venta identificada expresamente como ocasional, sin `cliente_id` maestro, con un pago completo en EFECTIVO. Registra la Venta con nombre, teléfono, dirección y vendedor existentes; genera recibo/pago de efectivo asociados al `venta_id`, sin movimiento de Cuenta Corriente ni deuda. Rechaza Cuenta Corriente, transferencia, cheque, importes parciales y referencias de cliente maestro. Los reintentos conservan la intención financiera y la idempotencia existente.
+
+La primera Venta ocasional agrega automáticamente **una columna `cliente_ocasional` a la hoja `ventas` de Pedidos** con valor `si` en esa Venta. No se crea una ficha de cliente ni una hoja nueva. El detalle e impresión de la Venta utilizan su histórico; para emitir después un comprobante es necesario crear/seleccionar un cliente real mediante el flujo habitual. Esta versión no convierte automáticamente la Venta ocasional en comprobante ni en deuda.
+
+Para instalar esta mejora: actualizar primero el Apps Script de Gestión en el despliegue existente, luego el de Pedidos, y finalmente los dos frontends. No ejecutar `setupD9Gestion()` ni migraciones generales.
 
 ## Modelo y separación
 
@@ -13,7 +21,7 @@ La numeración futura de comprobantes y recibos TEST usa contadores distintos `T
 ## Antes de activar
 
 1. Respaldar la Sheet central D9 Pedidos **y** la Sheet D9 Gestión con copias fechadas. No ejecutar `setupD9Gestion()`.
-2. Actualizar solamente el proyecto Apps Script de D9 Gestión y su despliegue web existente (sin cambiar URL ni propiedades). Actualizar después el frontend D9 Gestión. Pedidos no cambia.
+2. Actualizar el proyecto Apps Script de D9 Gestión y su despliegue web existente (sin cambiar URL ni propiedades). Para esta versión también actualizar Pedidos según las instrucciones anteriores.
 3. Iniciar como superadmin, entrar a 🧪 Modo pruebas → «Revisar histórico TEST». Esta vista no escribe nada. Revisar IDs, teléfono/ciudad, filas ambiguas, saldo estimado y cierres antiguos. El entorno de trabajo NO tuvo acceso a los datos reales: ninguna ficha fue clasificada durante la creación de esta versión.
 4. Sólo tras verificar los respaldos y los IDs, marcar las fichas que correspondan y confirmar «CLASIFICAR CLIENTES TEST». La función valida ID+nombre, crea **únicamente** la columna `ambito` en `clientes` si falta y pone `TEST` sólo en los IDs seleccionados; la operación es idempotente. No toca históricos ni contadores REAL. Los contadores TEST se crean al emitir el primer documento de cada tipo.
 5. Ejecutar otra vista previa; comparar los saldos identificados antes y después, visitar Cuenta Corriente TEST y el saldo REAL con Ale. Toda fila ambigua requiere revisión manual antes de dar la segregación histórica por cerrada. No inventar IDs a partir del nombre.
@@ -24,4 +32,4 @@ La numeración futura de comprobantes y recibos TEST usa contadores distintos `T
 - El histórico sin `cliente_id` o referencia única puede permanecer en REAL; la vista previa lo denuncia, pero no lo migra por nombre.
 - Un cierre de comisiones ya congelado con líneas TEST exige conciliación manual de sus cifras históricas; no se reescribe.
 - No hubo acceso de lectura a las Sheets productivas ni navegador Chromium para validar el aspecto final en dispositivo. Los escenarios descritos fueron simulados con fixtures.
-- La separación afecta Gestión y su backend; D9 Pedidos v1.5.39 se mantiene sin cambios.
+- La separación TEST permanece como en v0.19.4; D9 Pedidos v1.5.40 incorpora solamente las funciones descritas arriba.
