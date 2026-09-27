@@ -1,3 +1,3 @@
 D9 GESTIÓN
-Versión v0.19.6
-No confundir con D9 Pedidos.
+Versión candidata v0.19.7-rc1 — Bloque 4 F/G/H
+No confundir con D9 Pedidos. No desplegado.

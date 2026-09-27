@@ -4,6 +4,7 @@ const CONFIG = window.D9_GESTION_CONFIG || {};
 const API_URL = String(CONFIG.API_URL || "").trim();
 const STORAGE = { token:"d9g_token", user:"d9g_user" };
 const DATA_CACHE = { db:"d9_gestion_local", store:"snapshots", key:"bootstrap", version:1 };
+const DOCUMENT_INTENT_PREFIX = "d9g_document_intent_v1_";
 const ORDER_POLL_MS = 15000;
 const NETWORK_READ_RETRY_MS = 400;
 const $ = (s, root=document) => root.querySelector(s);
@@ -88,6 +89,47 @@ async function writeDataCache(data){
 function cacheUserKey(){return String(state.user?.id||state.user?.usuario||"")+"|"+(state.testMode?"TEST":"REAL")}
 function currentSnapshot(){return {user:state.user,permissions:state.permissions,source:state.source,gestion:state.gestion}}
 function saveCurrentCache(){void writeDataCache({userKey:cacheUserKey(),savedAt:Date.now(),data:currentSnapshot()})}
+let documentIntentBusy=false;
+function documentIntentKey(){return DOCUMENT_INTENT_PREFIX+String(state.user?.id||"")+"_"+(state.testMode?"TEST":"REAL")}
+function pendingDocumentIntent(){try{return JSON.parse(localStorage.getItem(documentIntentKey())||"null")}catch(_){return null}}
+function renderDocumentIntentBanner(){const el=$("#documentIntentBanner");if(el)el.classList.toggle("hidden",!state.user||!pendingDocumentIntent())}
+function documentIntentId(){
+  if(!globalThis.crypto?.getRandomValues)throw new Error("Este navegador no puede generar una identidad segura para el comprobante.");
+  const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);
+  return "DOCI-"+[...bytes].map(byte=>byte.toString(16).padStart(2,"0")).join("");
+}
+function persistDocumentIntent(payload){
+  const saved={payload,createdAt:Date.now(),usuario_id:String(state.user?.id||""),ambito:state.testMode?"TEST":"REAL"};
+  localStorage.setItem(documentIntentKey(),JSON.stringify(saved));
+  if(pendingDocumentIntent()?.payload?.intencion_id!==payload.intencion_id)throw new Error("No pude conservar el intento en este dispositivo; no se envió el comprobante.");
+  renderDocumentIntentBanner();
+}
+function clearDocumentIntent(id){const saved=pendingDocumentIntent();if(saved?.payload?.intencion_id===id)localStorage.removeItem(documentIntentKey());renderDocumentIntentBanner()}
+async function recoverPendingDocumentIntent(){
+  const saved=pendingDocumentIntent();if(!saved||documentIntentBusy||!state.token)return;
+  if(saved.usuario_id!==String(state.user?.id||"")||saved.ambito!==(state.testMode?"TEST":"REAL"))return;
+  documentIntentBusy=true;renderDocumentIntentBanner();
+  try{
+    const data=await apiPost("create_operacion",saved.payload);
+    clearDocumentIntent(saved.payload.intencion_id);
+    if(data.cancelada)toast(data.message||"El Pedido se anuló antes de crear el comprobante.","error");
+    else toast(`Comprobante ${formatOperationNumber(data.numero)} verificado: una sola creación.`);
+    if($("#operationDialog")?.open)$("#operationDialog").close();
+    await loadAll({silent:true});
+  }catch(error){toast("Sigue pendiente de verificar: "+error.message,"error")}
+  finally{documentIntentBusy=false;renderDocumentIntentBanner()}
+}
+async function cancelPendingDocumentIntent(){
+  const saved=pendingDocumentIntent();if(!saved||documentIntentBusy)return;
+  documentIntentBusy=true;
+  try{
+    const data=await apiPost("cancelar_intencion_comprobante",{intencion_id:saved.payload.intencion_id});
+    if(!data.cancelada)throw new Error("El servidor no confirmó la cancelación.");
+    clearDocumentIntent(saved.payload.intencion_id);
+    toast("Intento cancelado sin crear comprobante. Podés corregir y volver a guardar.");
+  }catch(error){toast("No se puede cancelar sin verificar: "+error.message,"error")}
+  finally{documentIntentBusy=false;renderDocumentIntentBanner()}
+}
 
 function toast(message, type="") {
   const el = $("#toast");
@@ -156,6 +198,7 @@ function showApp() {
   if($("#appVersion"))$("#appVersion").textContent=version;
   if($("#appVersionMore"))$("#appVersionMore").textContent=`D9 Gestión · ${version}`;
   renderTestModeD9();
+  renderDocumentIntentBanner();
 }
 
 async function login(event) {
@@ -163,7 +206,7 @@ async function login(event) {
   const button=$("#loginForm button"); button.disabled=true; button.textContent="Ingresando…";
   try {
     const data=await apiPost("login",{usuario:$("#loginUser").value.trim(),clave:$("#loginPassword").value});
-    saveSession(data);showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();
+    saveSession(data);showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();void recoverPendingDocumentIntent();
   } catch(err) { showLogin(err.message); }
   finally { button.disabled=false; button.textContent="Ingresar"; }
 }
@@ -191,6 +234,7 @@ function renderTestModeD9(){
   if(button){button.classList.toggle("hidden",!allowed);button.textContent=state.testMode?"🧪 Salir de pruebas":"🧪 Modo pruebas";button.disabled=!state.token;}
   if(banner)banner.classList.toggle("hidden",!allowed||!state.testMode);
   document.body.classList.toggle("test-mode-d9",allowed&&state.testMode);
+  renderDocumentIntentBanner();
   $$("#nav [data-view=maestros], #nav [data-view=usuarios], #nav [data-view=ofertas], #nav [data-view=publicidad], #nav [data-view=config]").forEach(el=>el.classList.toggle("hidden",allowed&&state.testMode));
 }
 async function toggleTestModeD9(){
@@ -201,6 +245,7 @@ async function toggleTestModeD9(){
     const data=await apiRead("bootstrap");
     state.salesHistory=[];state.salesHistoryLoaded=false;state.ordersRangeActive=false;
     applyBootstrap(data);saveCurrentCache();showView("home");
+    void recoverPendingDocumentIntent();
     toast(state.testMode?"Laboratorio TEST activo.":"Volviste a los datos comerciales REAL.");
   }catch(error){state.testMode=previous;renderTestModeD9();toast(error.message,"error")}
   finally{button.disabled=false;}
@@ -1278,7 +1323,7 @@ function stageCreatedOperation(data,payload,total,paid){
 }
 function refreshAfterMutation(){setSync("Guardado · actualizando…");return loadAll({silent:true})}
 async function saveOperation(event) {
-  event.preventDefault();if(!canIssueDocuments())return toast("Tu usuario no tiene permiso para emitir comprobantes.","error");syncDraftFromDom();const financial=["BONIFICACION_REMITO","CREDITO_GENERAL"].includes(state.currentCreditMode);
+  event.preventDefault();if(!canIssueDocuments())return toast("Tu usuario no tiene permiso para emitir comprobantes.","error");if(pendingDocumentIntent())return void recoverPendingDocumentIntent();syncDraftFromDom();const financial=["BONIFICACION_REMITO","CREDITO_GENERAL"].includes(state.currentCreditMode);
   const items=financial?[]:state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!financial&&!items.length)return toast("Agregá al menos un producto.","error");
   if(items.some(item=>!Number.isFinite(Number(item.descuento_pct))||numeric(item.descuento_pct)<0||numeric(item.descuento_pct)>100))return toast("El descuento de cada línea debe estar entre 0% y 100%.","error");
   const selectedClientId=$("#opClient").value,selectedOccasional=occasionalProfileById(selectedClientId),selectedOrderOccasional=isOccasionalId(selectedClientId),occasionalMode=!$("#opOccasionalFields").classList.contains("hidden")||!!selectedOccasional||selectedOrderOccasional,occasionalName=selectedOccasional?.nombre||(selectedOrderOccasional?$("#opClientSelectedName").textContent.trim():$("#opOccasionalName").value.trim());
@@ -1287,8 +1332,16 @@ async function saveOperation(event) {
   if(!cliente?.id||!cliente?.nombre)return toast("Buscá y elegí el cliente correcto.","error");
   if(state.currentCreditMode==="DEVOLUCION_PRODUCTOS"&&items.some(item=>numeric(item.cantidad)>numeric(item.maximo)+.0001))return toast("Una cantidad supera lo disponible en el remito.","error");const total=operationTotal();if(financial&&total<=0)return toast("Ingresá el importe del crédito.","error");if(financial&&!$("#financialCreditConcept").value.trim())return toast("Ingresá el motivo del crédito.","error");const payments=(state.currentCreditOperation||financial||state.currentSale?.finanzas_id)?[]:readPayments("op"),paid=payments.reduce((s,p)=>s+Number(p.importe),0);if(paid>total+.01)return toast("El pago inicial no puede superar el total.","error");if(!state.currentCreditOperation&&!financial&&$("#opPaymentMethod").value!=="CUENTA_CORRIENTE"&&!payments.length)return toast("Ingresá el importe pagado.","error");
   const sellerValue=$("#opSeller").value,direct=sellerValue==="__NO_COMMISSION__",selectedSeller=sellerById(sellerValue)||(state.currentCreditOperation?operationSellerInfo(state.currentCreditOperation):null),payload={tipo:$("#opType").value,fecha:$("#opDate").value,cliente_id:cliente.id,cliente:cliente.nombre,vendedor_id:direct?"":(selectedSeller?.id||""),vendedor:direct?"Venta directa / sin comisión":(selectedSeller?.nombre||""),comision_estado:direct?"NO_APLICA":"APLICA",credito_tipo:state.currentCreditMode||"",credito_importe:financial?total:0,credito_concepto:financial?$("#financialCreditConcept").value.trim():"",origen_pedido_id:$("#opSourceOrder").value,origen_venta_id:$("#opSourceSale").value,referencia_operacion_id:$("#opReferenceOperation").value,descuento_pct:Number($("#opDiscount").value)||0,observaciones:$("#opNotes").value.trim(),items,pagos_iniciales:payments};
+  try{payload.intencion_id=documentIntentId();persistDocumentIntent(payload)}catch(error){return toast(error.message,"error")}
   const btn=$("#btnSaveOperation");btn.disabled=true;btn.textContent="Guardando…";
-  try{const data=await apiPost("create_operacion",payload);stageCreatedOperation(data,payload,total,paid);$("#operationDialog").close();toast(`Comprobante ${formatOperationNumber(data.numero)} guardado`);showOperationDetail(data.operacion_id,false);refreshAfterMutation();}catch(err){if(payload.origen_pedido_id&&/^El pedido de origen (fue anulado|ya no existe)\./.test(err.message||"")){$("#operationDialog").close();void loadOrdersHistory();}toast(err.message,"error")}finally{btn.disabled=false;btn.textContent="Guardar comprobante";}
+  try{
+    const data=await apiPost("create_operacion",payload);
+    clearDocumentIntent(payload.intencion_id);
+    $("#operationDialog").close();
+    if(data.cancelada){toast(data.message||"El Pedido dejó de estar disponible; no se creó el comprobante.","error");void loadOrdersHistory();}
+    else{stageCreatedOperation(data,payload,total,paid);toast(`Comprobante ${formatOperationNumber(data.numero)} guardado`);showOperationDetail(data.operacion_id,false);refreshAfterMutation();}
+  }catch(err){$("#operationDialog").close();toast("Resultado no confirmado. Usá «Verificar y recuperar» antes de crear otro. "+err.message,"error")}
+  finally{btn.disabled=false;btn.textContent="Guardar comprobante";renderDocumentIntentBanner();}
 }
 
 function setReceiptMessage(message="",type=""){
@@ -1459,6 +1512,8 @@ async function annulOperation(id){if(!isAdmin())return toast("Sólo administraci
 async function updateCheck(id,status){if(!isAdmin())return toast("Sólo administración puede cambiar cheques.","error");if(!confirm(`¿Marcar el cheque como ${status.toLowerCase()}?`))return;try{await apiPost("update_cheque_status",{cheque_id:id,estado:status});toast("Cheque actualizado");await loadAll()}catch(err){toast(err.message,"error")}}
 
 function bindEvents(){
+  $("#btnRetryDocumentIntent").addEventListener("click",recoverPendingDocumentIntent);
+  $("#btnCancelDocumentIntent").addEventListener("click",cancelPendingDocumentIntent);
   bindPriceListEvents();
   bindOffersPdfEvents();
   initOperationsUI();
@@ -1492,5 +1547,5 @@ function bindEvents(){
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void pollOrders()});
 }
 
-async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();}
+async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();void recoverPendingDocumentIntent();}
 boot();
