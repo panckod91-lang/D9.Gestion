@@ -73,6 +73,12 @@ function docsPreset(name){
   ["#operationsType","#operationsSeller","#operationsClient","#operationsClientSearch","#operationsSearch","#operationsFrom","#operationsTo"].forEach(s=>$(s).value="");
   operationsUI.page=1;renderOperations();
 }
+function docsToggleAnnulled(){
+  if($("#operationsStatus").value==="annulled")return docsPreset("recent");
+  $("#operationsPeriod").value="all";$("#operationsStatus").value="annulled";$("#operationsBalance").value="";
+  ["#operationsType","#operationsSeller","#operationsClient","#operationsClientSearch","#operationsSearch"].forEach(s=>$(s).value="");
+  operationsUI.page=1;renderOperations();
+}
 function docsStatus(op){
   if(isAnnulled(op.estado))return '<span class="pill red">Anulado</span>';
   if(String(op.tipo).toUpperCase()==="NOTA_CREDITO")return '<span class="pill">Vigente · crédito</span>';
@@ -92,6 +98,8 @@ function docsRow(op){
 function renderOperationsUI(){
   docsHydrateClients();docsHydrateSellers();
   const f=docsReadFilters(),fingerprint=JSON.stringify(f);
+  const annulled=f.status==="annulled",annulledButton=$("#btnShowAnnulled");
+  annulledButton.textContent=annulled?"Volver a vigentes":"Ver anulados";annulledButton.setAttribute("aria-pressed",String(annulled));annulledButton.classList.toggle("primary",annulled);
   if(fingerprint!==operationsUI.fingerprint){operationsUI.page=1;operationsUI.fingerprint=fingerprint}
   const range=docsRange(f.period,f.from,f.to),invalid=f.period==="custom"&&(!f.from||!f.to||f.from>f.to);
   $("#operationsDates").classList.toggle("hidden",f.period!=="custom");
@@ -167,8 +175,8 @@ async function runDocsAction(id,key){
   const action=docsActions(op).find(a=>a.key===key);if(!action)return toast("Esta acción no está disponible para tu sesión.","error");
   if(action.reason)return toast(action.reason,"error");
   if(key==="annul"){
-    await annulOperation(id);
-    if($("#detailDialog").open)showOperationsDetail(id,false,false);
+    const confirmed=await annulOperation(id);
+    if(confirmed&&$("#detailDialog").open)showOperationsDetail(id,false,false);
     return;
   }
   $("#detailDialog").close();
@@ -181,6 +189,7 @@ function initOperationsUI(){
   if(operationsUI.bound)return;operationsUI.bound=true;
   $("#detailDialog").addEventListener("close",()=>{if(!$("#detailDialog").open)$("#detailDialog").classList.remove("docs-detail")});
   $("#operationsFilters").open=window.matchMedia("(min-width: 761px)").matches;
+  $("#btnShowAnnulled").addEventListener("click",docsToggleAnnulled);
   ["#operationsPeriod","#operationsFrom","#operationsTo","#operationsSeller","#operationsClient","#operationsBalance"].forEach(s=>$(s).addEventListener("change",renderOperations));
   $("#operationsClientSearch").addEventListener("input",docsHydrateClients);
   $("#operationsPeriod").addEventListener("change",()=>{if($("#operationsPeriod").value==="custom"&&!$("#operationsFrom").value){const range=docsRange("30");$("#operationsFrom").value=range.from;$("#operationsTo").value=range.to;renderOperations()}});

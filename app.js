@@ -71,6 +71,9 @@ const state = {
 
 let ordersPollTimer=null;
 let ordersPollBusy=false;
+let scopeSwitchBusy=false,scopeGeneration=0,appInitializing=false,scopeDisplayMode=false;
+function setAppBusy(message=""){const el=$("#appBusyStatus");if(el){el.textContent=message;el.classList.toggle("hidden",!message)}}
+function setActionBusy(button,busy,label){if(!button)return;button.disabled=busy;button.classList.toggle("working",busy);button.setAttribute("aria-busy",String(busy));if(label!==undefined)button.textContent=label}
 
 function openDataCache() {
   return new Promise((resolve,reject)=>{
@@ -147,6 +150,7 @@ function apiUrl(action) {
   url.searchParams.set("action", action);
   return url.toString();
 }
+function recordTiming(label,start){const ms=Math.round(performance.now()-start),rows=window.D9_GESTION_TIMINGS||(window.D9_GESTION_TIMINGS=[]);rows.push({accion:label,ms,fecha:new Date().toISOString()});if(rows.length>30)rows.shift();return ms}
 async function parseResponse(res) {
   const text = await res.text();
   let data; try { data=JSON.parse(text); } catch { throw new Error(`Respuesta inválida: ${text.slice(0,100)}`); }
@@ -160,8 +164,9 @@ async function parseResponse(res) {
 async function apiPost(action, payload={}) {
   if (!apiReady()) throw new Error("Falta configurar la URL de D9 Gestión");
   const body = JSON.stringify({action,token:state.token,...payload,ambito:state.testMode?"TEST":"REAL"});
-  const res = await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
-  return parseResponse(res);
+  const timed=["bootstrap","create_operacion","anular_operacion","create_recibo","source_save_client","source_save_product","source_import_products"].includes(action),start=timed?performance.now():0;
+  try{const res=await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});return await parseResponse(res)}
+  finally{if(timed)recordTiming(action,start)}
 }
 function isNetworkFetchError(error){return error instanceof TypeError||/networkerror|failed to fetch|load failed|network request failed|fetch resource/i.test(String(error?.message||error||""))}
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
@@ -206,13 +211,13 @@ async function login(event) {
   const button=$("#loginForm button"); button.disabled=true; button.textContent="Ingresando…";
   try {
     const data=await apiPost("login",{usuario:$("#loginUser").value.trim(),clave:$("#loginPassword").value});
-    saveSession(data);showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();void recoverPendingDocumentIntent();
+    saveSession(data);showApp();await initializeAppData();startOrderPolling();void recoverPendingDocumentIntent();
   } catch(err) { showLogin(err.message); }
   finally { button.disabled=false; button.textContent="Ingresar"; }
 }
 
 function applyBootstrap(data) {
-  if(state.testMode&&data.permissions?.ambito!=="TEST")throw new Error("El servidor no confirmó el ámbito TEST. Verificá primero su despliegue.");
+  if(data.permissions?.ambito!==(state.testMode?"TEST":"REAL"))throw new Error("El servidor no confirmó el ámbito solicitado. Actualizá y volvé a intentar.");
   if(data.user){state.user=data.user;localStorage.setItem(STORAGE.user,JSON.stringify(state.user));showApp()}
   if(data.permissions?.ambito_revision)state.scopeRevision=String(data.permissions.ambito_revision);
   state.permissions={ambito:data.permissions?.ambito||"REAL",source_admin:!!data.permissions?.source_admin,gestion_admin:!!data.permissions?.gestion_admin,super_admin:!!data.permissions?.super_admin,can_issue_documents:!!data.permissions?.can_issue_documents,source_writes_enabled:!!data.permissions?.source_writes_enabled};
@@ -230,25 +235,30 @@ function applyBootstrap(data) {
 
 function renderTestModeD9(){
   const allowed=state.permissions?.super_admin===true;
+  const pendingPermission=appInitializing&&state.user?.rol_gestion==="super_admin"&&!allowed;
   const button=$("#btnTestMode"),banner=$("#testModeBanner");
-  if(button){button.classList.toggle("hidden",!allowed);button.textContent=state.testMode?"🧪 Salir de pruebas":"🧪 Modo pruebas";button.disabled=!state.token;}
-  if(banner)banner.classList.toggle("hidden",!allowed||!state.testMode);
-  document.body.classList.toggle("test-mode-d9",allowed&&state.testMode);
+  if(button){button.classList.toggle("hidden",!allowed&&!pendingPermission);button.textContent=scopeSwitchBusy?"🧪 Cambiando…":pendingPermission?"🧪 Cargando…":state.testMode?"🧪 Salir de pruebas":"🧪 Modo pruebas";button.disabled=!state.token||scopeSwitchBusy||pendingPermission;button.classList.toggle("working",scopeSwitchBusy);button.setAttribute("aria-busy",String(scopeSwitchBusy));}
+  if($("#btnRefresh"))$("#btnRefresh").disabled=scopeSwitchBusy;
+  const shownTest=scopeSwitchBusy?scopeDisplayMode:state.testMode;
+  if(banner)banner.classList.toggle("hidden",!allowed||!shownTest);
+  document.body.classList.toggle("test-mode-d9",allowed&&shownTest);
   renderDocumentIntentBanner();
-  $$("#nav [data-view=maestros], #nav [data-view=usuarios], #nav [data-view=ofertas], #nav [data-view=publicidad], #nav [data-view=config]").forEach(el=>el.classList.toggle("hidden",allowed&&state.testMode));
+  $$("#nav [data-view=maestros], #nav [data-view=usuarios], #nav [data-view=ofertas], #nav [data-view=publicidad], #nav [data-view=config]").forEach(el=>el.classList.toggle("hidden",allowed&&shownTest));
 }
 async function toggleTestModeD9(){
-  if(!state.permissions?.super_admin)return;
-  const previous=state.testMode,button=$("#btnTestMode");button.disabled=true;
+  if(!state.permissions?.super_admin||scopeSwitchBusy)return;
+  if(documentIntentBusy||$$(".btn.working").length)return toast("Esperá a que termine la operación actual antes de cambiar de ámbito.","error");
+  const previous=state.testMode;scopeDisplayMode=previous;scopeSwitchBusy=true;scopeGeneration++;stopOrderPolling();
   state.testMode=!previous;
+  document.body.classList.add("scope-changing");renderTestModeD9();setAppBusy(state.testMode?"Cambiando a Modo Pruebas…":"Volviendo a datos comerciales…");
   try{
     const data=await apiRead("bootstrap");
     state.salesHistory=[];state.salesHistoryLoaded=false;state.ordersRangeActive=false;
     applyBootstrap(data);saveCurrentCache();showView("home");
     void recoverPendingDocumentIntent();
     toast(state.testMode?"Laboratorio TEST activo.":"Volviste a los datos comerciales REAL.");
-  }catch(error){state.testMode=previous;renderTestModeD9();toast(error.message,"error")}
-  finally{button.disabled=false;}
+  }catch(error){state.testMode=state.token?previous:false;toast(error.message,"error")}
+  finally{scopeSwitchBusy=false;document.body.classList.remove("scope-changing");renderTestModeD9();setAppBusy();startOrderPolling();}
 }
 async function reviewTestHistoryD9(){
   if(!state.permissions?.super_admin)return;
@@ -286,17 +296,18 @@ function canPollOrders(){
   return !!state.token&&document.visibilityState==="visible"&&!$("#app").classList.contains("hidden");
 }
 async function pollOrders(){
-  if(ordersPollBusy||!canPollOrders())return;
+  if(ordersPollBusy||scopeSwitchBusy||!canPollOrders())return;
   ordersPollBusy=true;
-  const pollingToken=state.token;
+  const pollingToken=state.token,pollingGeneration=scopeGeneration;
   try{
     const check=await apiRead("actividad_revision"),ordersRevision=String(check.pedidos_revision||""),salesRevision=String(check.ventas_revision||"");
+    if(scopeSwitchBusy||pollingGeneration!==scopeGeneration)return;
     if(check.ambito_revision&&String(check.ambito_revision)!==state.scopeRevision){await loadAll({silent:true});return;}
     const financeRevision=String(check.finanzas_revision||""),financeChanged=canIssueDocuments()&&!!financeRevision&&financeRevision!==state.financeRevision;
     const ordersChanged=!state.ordersRangeActive&&!!ordersRevision&&ordersRevision!==state.ordersRevision,salesChanged=!!salesRevision&&salesRevision!==state.salesRevision;if(!ordersChanged&&!salesChanged&&!financeChanged)return;
     const previousOrderIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||""))),previousSaleIds=new Set(state.source.ventas.map(sale=>String(sale.venta_id||"")));
     const [ordersData,salesData,financeData]=await Promise.all([ordersChanged?apiRead("pedidos"):null,salesChanged?apiRead("ventas"):null,financeChanged?apiRead("finanzas"):null]);
-    if(pollingToken!==state.token)return;
+    if(pollingToken!==state.token||scopeSwitchBusy||pollingGeneration!==scopeGeneration)return;
     if(ordersData){state.source.pedidos=ordersData.pedidos||[];state.ordersRevision=String(ordersData.revision||ordersRevision)}
     if(salesData){state.source.ventas=salesData.ventas||[];state.salesRevision=String(salesData.revision||salesRevision)}
     if(financeData){Object.assign(state.gestion,financeData.gestion);state.financeRevision=String(financeData.revision||financeRevision);state.gestion.operaciones.forEach(operation=>operation.numero=canonicalOperationNumber(operation.numero,operation.tipo));}
@@ -306,7 +317,7 @@ async function pollOrders(){
     const time=new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
     const news=[];if(newOrders.length)news.push(`${newOrders.length} pedido${newOrders.length===1?"":"s"}`);if(newSales.length)news.push(`${newSales.length} venta${newSales.length===1?"":"s"}`);setSync(news.length?`${news.join(" · ")} nuevo${newOrders.length+newSales.length===1?"":"s"} · ${time}`:`Actividad actualizada ${time}`);
   }catch(err){
-    if(/sesión|token|autoriz/i.test(err.message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
+    if(pollingGeneration===scopeGeneration&&!scopeSwitchBusy&&/sesión|token|autoriz/i.test(err.message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
   }finally{ordersPollBusy=false}
 }
 async function showCachedData() {
@@ -319,14 +330,23 @@ async function showCachedData() {
 }
 async function loadAll(options={}) {
   if(!options.silent)setSync("Sincronizando…");
+  const generation=scopeGeneration;
   try {
-    const data=await apiRead("bootstrap");
+    const data=await (options.request||apiRead("bootstrap"));
+    if(generation!==scopeGeneration)return;
     applyBootstrap(data);state.cacheLoaded=true;saveCurrentCache();
     setSync(`Actualizado ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`);
   } catch(err) {
+    if(generation!==scopeGeneration)return;
     if (/sesión|token|autoriz/i.test(err.message)) { clearSession(); showLogin("La sesión venció. Volvé a ingresar."); }
     else {setSync(state.cacheLoaded?"Datos guardados · sin conexión":"Error de conexión",true);toast(err.message,"error")}
   }
+}
+async function initializeAppData(){
+  appInitializing=true;setAppBusy("Inicializando Gestión…");renderTestModeD9();const started=performance.now();
+  const request=apiRead("bootstrap");request.catch(()=>{});
+  try{const cached=await showCachedData();await loadAll({silent:cached,request})}
+  finally{recordTiming("inicio total",started);appInitializing=false;setAppBusy();renderTestModeD9()}
 }
 
 function showView(name, {fromMainNavigation=false}={}) {
@@ -346,13 +366,15 @@ function showView(name, {fromMainNavigation=false}={}) {
 
 async function loadOrdersHistory(){
   const from=$("#ordersFrom").value,to=$("#ordersTo").value;if(from&&to&&from>to)return toast("La fecha desde no puede ser posterior a la fecha hasta.","error");
+  const generation=scopeGeneration;
   const button=$("#btnReloadOrders");button.disabled=true;button.textContent="Cargando…";setSync(from||to?"Buscando pedidos del período…":"Cargando pedidos recientes…");
-  try{const data=await apiRead("pedidos",{from,to});state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);if(!state.ordersRangeActive&&data.revision)state.ordersRevision=String(data.revision);populateSelectors();renderHome();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
-  catch(err){toast(err.message||"No se pudo cargar el historial de pedidos.","error");setSync("No se pudo actualizar Pedidos",true)}
+  try{const data=await apiRead("pedidos",{from,to});if(generation!==scopeGeneration||scopeSwitchBusy)return;state.source.pedidos=data.pedidos||[];state.ordersRangeActive=!!(from||to);if(!state.ordersRangeActive&&data.revision)state.ordersRevision=String(data.revision);populateSelectors();renderHome();renderOrders();if(!state.ordersRangeActive)saveCurrentCache();setSync(`Pedidos actualizados ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}
+  catch(err){if(generation!==scopeGeneration)return;toast(err.message||"No se pudo cargar el historial de pedidos.","error");setSync("No se pudo actualizar Pedidos",true)}
   finally{button.disabled=false;button.textContent="↻ Actualizar"}
 }
 
 function orderDateValue(o) { return String(o.fecha_iso||o.fecha||"").slice(0,10); }
+function orderTimestamp(o){const raw=String(o?.fecha||"").trim(),local=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);if(local)return new Date(Number(local[3]),Number(local[2])-1,Number(local[1]),Number(local[4]||0),Number(local[5]||0),Number(local[6]||0)).getTime();const parsed=Date.parse(raw);return Number.isFinite(parsed)?parsed:0}
 function operationItems(id) { return state.gestion.items.filter(x=>String(x.operacion_id)===String(id)); }
 function receiptPayments(id) { return state.gestion.pagos.filter(x=>String(x.recibo_id)===String(id)); }
 function paymentCheck(payment) {
@@ -392,7 +414,7 @@ function accountRows() {
 function renderHome() {
   $("#todayLabel").textContent=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
   const today=todayISO();
-  const orders=state.source.pedidos.filter(o=>orderDateValue(o)===today && !isAnnulled(o.estado));
+  const orders=state.source.pedidos.filter(o=>orderDateValue(o)===today && !isAnnulled(o.estado)).sort((a,b)=>orderTimestamp(b)-orderTimestamp(a)||String(b.pedido_id||"").localeCompare(String(a.pedido_id||"")));
   const ops=activeOperations().filter(o=>String(o.fecha||"").slice(0,10)===today);
   const accounts=accountRows();
   const checks=state.gestion.cheques.filter(c=>!["COBRADO","RECHAZADO","ANULADO"].includes(String(c.estado||"").toUpperCase()) && daysFromToday(c.fecha_vencimiento)>=0 && daysFromToday(c.fecha_vencimiento)<=7);
@@ -452,7 +474,7 @@ function filteredSales(){const q=$("#salesSearch").value.trim(),seller=$("#sales
 function hydrateSalesSellerFilter(){const select=$("#salesSeller"),current=select.value,map=new Map();state.salesHistory.forEach(sale=>{const key=String(sale.usuario_id||sale.usuario||"");if(key&&!map.has(key))map.set(key,sale.usuario||sale.usuario_id)});select.innerHTML='<option value="">Todos</option>'+[...map].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),"es")).map(([key,label])=>`<option value="${esc(key)}">${esc(label)}</option>`).join("");if(map.has(current))select.value=current}
 function saleHistoryCard(sale){const used=saleSourceOperations(sale),status=sale.cliente_ocasional?'<span class="pill">Ocasional · efectivo total</span>':used.length?`<span class="pill green">${esc(orderUsedLabel(used[0]))}${used.length>1?` +${used.length-1}`:""}</span>`:'<span class="pill">Sin comprobante</span>';return `<article class="data-card sale-history-card"><div><h3>${esc(sale.cliente||"Sin cliente")}</h3><p>${esc(sale.fecha||sale.fecha_iso||"")} · ${esc(sale.usuario||"Sin usuario")}</p><div class="meta"><span class="pill">${esc(sale.venta_id)}</span>${status}<span class="pill">${esc(saleConditionLabel(sale))}</span></div></div><div class="card-side"><strong>${money(sale.total_venta)}</strong><div class="row-actions">${saleActionButtons(sale)}</div></div></article>`}
 function renderSales(){if(!state.salesHistoryLoaded)return;const rows=filteredSales(),range=$("#salesFrom").value||$("#salesTo").value?`${$("#salesFrom").value||"inicio"} a ${$("#salesTo").value||"hoy"}`:"todo el historial";$("#salesSummary").textContent=`${rows.length} venta${rows.length===1?"":"s"} · ${range}`;const list=$("#salesList");list.className="card-list";list.innerHTML=rows.map(saleHistoryCard).join("")||'<div class="empty">No hay ventas con esos filtros.</div>'}
-async function loadSalesHistory({silent=false}={}){const from=$("#salesFrom").value,to=$("#salesTo").value;if(from&&to&&from>to)return toast("La fecha desde no puede ser posterior a la fecha hasta.","error");const button=$("#btnReloadSales");button.disabled=true;if(!silent)button.textContent="Cargando…";try{const data=await apiRead("ventas",{history:true,from,to});state.salesHistory=data.ventas||[];state.salesHistoryLoaded=true;hydrateSalesSellerFilter();renderSales();if(!silent)setSync(`Ventas actualizadas ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}catch(err){toast(err.message||"No se pudo cargar el historial de ventas.","error")}finally{button.disabled=false;button.textContent="↻ Actualizar"}}
+async function loadSalesHistory({silent=false}={}){const from=$("#salesFrom").value,to=$("#salesTo").value;if(from&&to&&from>to)return toast("La fecha desde no puede ser posterior a la fecha hasta.","error");const generation=scopeGeneration,button=$("#btnReloadSales");button.disabled=true;if(!silent)button.textContent="Cargando…";try{const data=await apiRead("ventas",{history:true,from,to});if(generation!==scopeGeneration||scopeSwitchBusy)return;state.salesHistory=data.ventas||[];state.salesHistoryLoaded=true;hydrateSalesSellerFilter();renderSales();if(!silent)setSync(`Ventas actualizadas ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`)}catch(err){if(generation===scopeGeneration)toast(err.message||"No se pudo cargar el historial de ventas.","error")}finally{button.disabled=false;button.textContent="↻ Actualizar"}}
 
 function filteredOrders(){
   const q=$("#ordersSearch").value.trim(),from=$("#ordersFrom").value,to=$("#ordersTo").value,seller=$("#ordersSeller").value,status=$("#ordersStatus").value;
@@ -631,10 +653,10 @@ async function saveProduct(event){
   event.preventDefault();const button=$("#btnSaveProduct"),message=$("#productFormMessage");if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
   const producto={id:$("#productId").value.trim(),nombre:$("#productName").value.trim(),categoria:$("#productCategory").value.trim(),marca:$("#productBrand").value.trim(),activo:$("#productActive").value};
   $$('[data-product-price]',$("#productPriceFields")).forEach(input=>producto[input.dataset.productPrice]=input.value===""?"":numeric(input.value));
-  button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");
+  setActionBusy(button,true,"Guardando…");message.classList.add("hidden");
   try{const result=await apiPost("source_save_product",{modo:$("#productForm").dataset.mode,producto});stageSourceProduct(producto);stageProductLog(result.log);toast(result.message||"Producto guardado");$("#productDialog").close();hydrateMasterFilters();renderMasters();refreshAfterMutation()}
   catch(err){message.textContent=err.message;message.className="form-message error"}
-  finally{button.disabled=false;button.textContent="Guardar producto"}
+  finally{setActionBusy(button,false,"Guardar producto")}
 }
 
 function uniqueValues(key){const values=new Map();adminProducts().forEach(p=>{const value=String(p[key]||"").trim(),normalized=normalize(value);if(value&&normalized&&!values.has(normalized))values.set(normalized,value)});return [...values.values()].sort((a,b)=>a.localeCompare(b,"es"))}
@@ -995,7 +1017,7 @@ async function saveClient(event){
   const fiscal=readClientFiscalForm(),documentDigits=onlyDigits(fiscal.numero_documento);
   const seller=sellerById($("#clientSeller").value),cliente={id:$("#clientId").value.trim(),nombre:$("#clientName").value.trim(),telefono:$("#clientPhone").value.trim(),direccion:$("#clientAddress").value.trim(),ciudad:$("#clientCity").value.trim(),lista_precio:$("#clientPriceList").value||"lista_1",vendedor_id:seller?.id||"",vendedor:seller?.nombre||"",activo:$("#clientActive").value,...fiscal,cuit:fiscal.tipo_documento==="CUIT"?documentDigits:""};
   if(!cliente.id||!cliente.nombre)return toast("ID y nombre comercial son obligatorios.","error");
-  const button=$("#btnSaveClient"),message=$("#clientFormMessage");button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");
+  const button=$("#btnSaveClient"),message=$("#clientFormMessage");setActionBusy(button,true,"Guardando…");message.classList.add("hidden");
   try{
     const returnToOperation=state.clientEditorOrigin==="operation"&&$("#operationDialog").open,isNew=$("#clientForm").dataset.mode==="new";
     let result=await apiPost("source_save_client",{cliente,nuevo:isNew});
@@ -1010,7 +1032,7 @@ async function saveClient(event){
     upsertBy(state.source.clientes_admin,"id",cliente);state.source.clientes=state.source.clientes_admin.filter(c=>activeValue(c.activo));saveCurrentCache();toast(result.message||"Cliente guardado");state.clientEditorOrigin="";$("#clientDialog").close();hydrateClientFilters();renderClients();if(returnToOperation){selectOperationClient(cliente.id);setTimeout(()=>$("#opProductSearch").focus(),60)}refreshAfterMutation();
   }
   catch(err){message.textContent=err.message;message.className="form-message error";message.classList.remove("hidden")}
-  finally{button.disabled=false;button.textContent="Guardar cliente"}
+  finally{setActionBusy(button,false,"Guardar cliente")}
 }
 async function deleteClient(){
   if(!isAdmin())return toast("Esta sesión no puede eliminar clientes.","error");
@@ -1328,7 +1350,7 @@ function stageCreatedOperation(data,payload,total,paid){
   const localItems=payload.items.length?payload.items:[{id_producto:"AJUSTE-FINANCIERO",nombre:payload.credito_tipo==="CREDITO_GENERAL"?"Crédito general":"Bonificación comercial",cantidad:1,precio:total,descuento_pct:0}];state.gestion.items.push(...localItems.map((item,index)=>({item_id:`LOCAL-IT-${index}`,operacion_id:data.operacion_id,orden:index+1,producto_id:item.id_producto,producto:item.nombre,cantidad:item.cantidad,precio_unitario:item.precio,descuento_pct:numeric(item.descuento_pct),subtotal:draftLineSubtotal(item)})));
   saveCurrentCache();
 }
-function refreshAfterMutation(){setSync("Guardado · actualizando…");return loadAll({silent:true})}
+function refreshAfterMutation(){const generation=scopeGeneration;setSync("Guardado · actualizando…");setAppBusy("Guardado · actualizando datos…");return loadAll({silent:true}).finally(()=>{if(generation===scopeGeneration&&!scopeSwitchBusy)setAppBusy()})}
 async function saveOperation(event) {
   event.preventDefault();if(!canIssueDocuments())return toast("Tu usuario no tiene permiso para emitir comprobantes.","error");if(pendingDocumentIntent())return void recoverPendingDocumentIntent();syncDraftFromDom();const financial=["BONIFICACION_REMITO","CREDITO_GENERAL"].includes(state.currentCreditMode);
   const items=financial?[]:state.draftItems.filter(i=>i.id_producto&&i.cantidad>0); if(!financial&&!items.length)return toast("Agregá al menos un producto.","error");
@@ -1340,7 +1362,7 @@ async function saveOperation(event) {
   if(state.currentCreditMode==="DEVOLUCION_PRODUCTOS"&&items.some(item=>numeric(item.cantidad)>numeric(item.maximo)+.0001))return toast("Una cantidad supera lo disponible en el remito.","error");const total=operationTotal();if(financial&&total<=0)return toast("Ingresá el importe del crédito.","error");if(financial&&!$("#financialCreditConcept").value.trim())return toast("Ingresá el motivo del crédito.","error");const payments=(state.currentCreditOperation||financial||state.currentSale?.finanzas_id)?[]:readPayments("op"),paid=payments.reduce((s,p)=>s+Number(p.importe),0);if(paid>total+.01)return toast("El pago inicial no puede superar el total.","error");if(!state.currentCreditOperation&&!financial&&$("#opPaymentMethod").value!=="CUENTA_CORRIENTE"&&!payments.length)return toast("Ingresá el importe pagado.","error");
   const sellerValue=$("#opSeller").value,direct=sellerValue==="__NO_COMMISSION__",selectedSeller=sellerById(sellerValue)||(state.currentCreditOperation?operationSellerInfo(state.currentCreditOperation):null),payload={tipo:$("#opType").value,fecha:$("#opDate").value,cliente_id:cliente.id,cliente:cliente.nombre,vendedor_id:direct?"":(selectedSeller?.id||""),vendedor:direct?"Venta directa / sin comisión":(selectedSeller?.nombre||""),comision_estado:direct?"NO_APLICA":"APLICA",credito_tipo:state.currentCreditMode||"",credito_importe:financial?total:0,credito_concepto:financial?$("#financialCreditConcept").value.trim():"",origen_pedido_id:$("#opSourceOrder").value,origen_venta_id:$("#opSourceSale").value,referencia_operacion_id:$("#opReferenceOperation").value,descuento_pct:Number($("#opDiscount").value)||0,observaciones:$("#opNotes").value.trim(),items,pagos_iniciales:payments};
   try{payload.intencion_id=documentIntentId();persistDocumentIntent(payload)}catch(error){return toast(error.message,"error")}
-  const btn=$("#btnSaveOperation");btn.disabled=true;btn.textContent="Guardando…";
+  const btn=$("#btnSaveOperation");setActionBusy(btn,true,"Guardando…");
   try{
     const data=await apiPost("create_operacion",payload);
     clearDocumentIntent(payload.intencion_id);
@@ -1348,7 +1370,7 @@ async function saveOperation(event) {
     if(data.cancelada){toast(data.message||"El Pedido dejó de estar disponible; no se creó el comprobante.","error");void loadOrdersHistory();}
     else{stageCreatedOperation(data,payload,total,paid);toast(`Comprobante ${formatOperationNumber(data.numero)} guardado`);showOperationDetail(data.operacion_id,false);refreshAfterMutation();}
   }catch(err){$("#operationDialog").close();toast("Resultado no confirmado. Usá «Verificar y recuperar» antes de crear otro. "+err.message,"error")}
-  finally{btn.disabled=false;btn.textContent="Guardar comprobante";renderDocumentIntentBanner();}
+  finally{setActionBusy(btn,false,"Guardar comprobante");renderDocumentIntentBanner();}
 }
 
 function setReceiptMessage(message="",type=""){
@@ -1407,10 +1429,10 @@ async function saveReceipt(event){
     if($("#receiptMethod").value==="CHEQUE"){const c=readCheckFields("receipt");if(!c.banco||!c.numero||!c.fecha_vencimiento)throw new Error("Para el cheque faltan banco, número o vencimiento.")}
     const op=activeOperations().find(o=>String(o.operacion_id)===String($("#receiptOperation").value));if(op&&amount>numeric(op.saldo)+.01)throw new Error(`El pago supera el saldo de ${money(op.saldo)}.`);
     const payload={fecha:$("#receiptDate").value,cliente_id:op?.cliente_id||account.cliente_id,cliente:op?.cliente||account.cliente,importe:amount,pagos:payments,operacion_id:$("#receiptOperation").value,observaciones:$("#receiptNotes").value.trim()};
-    btn.disabled=true;btn.textContent="Guardando…";setReceiptMessage("Guardando el recibo…","working");
+    setActionBusy(btn,true,"Guardando…");setReceiptMessage("Guardando el recibo…","working");
     const data=await apiPost("create_recibo",payload);stageCreatedReceipt(data,payload,payments,amount,op);$("#receiptDialog").close();toast(`Recibo ${data.numero} guardado`);showReceiptDetail(data.recibo_id,false);refreshAfterMutation();
   }catch(err){setReceiptMessage(err.message||"No se pudo guardar el recibo.","error");}
-  finally{btn.disabled=false;btn.textContent="Guardar recibo"}
+  finally{setActionBusy(btn,false,"Guardar recibo")}
 }
 
 function showOrderDetail(id){const o=state.source.pedidos.find(x=>String(x.pedido_id)===String(id));if(!o)return;openDetail(`Pedido ${o.pedido_id}`,detailHeader([["Fecha",o.fecha],["Cliente",o.cliente],["Vendedor",o.vendedor],["Total",money(o.total||o.total_pedido)]])+itemsTable(o.items||[]),orderActionButtons(o))}
@@ -1515,7 +1537,19 @@ function formatDate(value){const s=String(value||"");if(/^\d{4}-\d{2}-\d{2}/.tes
 function hydrateConfig(){const f=$("#configForm"),c=state.gestion.config;[...f.elements].forEach(el=>{if(el.name&&c[el.name]!==undefined)el.value=c[el.name]})}
 async function saveConfig(event){event.preventDefault();const config=Object.fromEntries(new FormData(event.currentTarget));try{await apiPost("update_config",{config});toast("Configuración guardada");await loadAll()}catch(err){toast(err.message,"error")}}
 
-async function annulOperation(id){if(!isAdmin())return toast("Sólo administración puede anular comprobantes.","error");const operation=state.gestion.operaciones.find(o=>String(o.operacion_id)===String(id));if(!confirm(operation?.finanzas_venta_id?"¿Anular sólo este documento? La Venta y sus movimientos financieros permanecerán vigentes.":"¿Anular este comprobante? No se borrará: se generarán los movimientos de reversión."))return;try{await apiPost("anular_operacion",{operacion_id:id});toast("Comprobante anulado");await loadAll()}catch(err){toast(err.message,"error")}}
+const annullingOperations=new Set();
+async function annulOperation(id){
+  if(!isAdmin())return toast("Sólo administración puede anular comprobantes.","error");
+  if(annullingOperations.has(String(id)))return false;
+  const operation=state.gestion.operaciones.find(o=>String(o.operacion_id)===String(id));
+  if(!confirm(operation?.finanzas_venta_id?"¿Anular sólo este documento? La Venta y sus movimientos financieros permanecerán vigentes.":"¿Anular este comprobante? No se borrará: se generarán los movimientos de reversión."))return false;
+  annullingOperations.add(String(id));
+  const buttons=$$("[data-operation-annul], [data-doc-action='annul']").filter(b=>String(b.dataset.operationAnnul||b.dataset.docId)===String(id)).map(button=>({button,label:button.textContent}));
+  buttons.forEach(({button})=>setActionBusy(button,true,"Anulando…"));
+  try{await apiPost("anular_operacion",{operacion_id:id});toast("Comprobante anulado · actualizando datos…");setAppBusy("Anulado · actualizando datos…");await loadAll({silent:true});return true}
+  catch(err){toast("Resultado no confirmado. Actualizá y verificá el estado antes de volver a intentar. "+err.message,"error");return false}
+  finally{annullingOperations.delete(String(id));buttons.forEach(({button,label})=>setActionBusy(button,false,label));if(!scopeSwitchBusy)setAppBusy()}
+}
 async function updateCheck(id,status){if(!isAdmin())return toast("Sólo administración puede cambiar cheques.","error");if(!confirm(`¿Marcar el cheque como ${status.toLowerCase()}?`))return;try{await apiPost("update_cheque_status",{cheque_id:id,estado:status});toast("Cheque actualizado");await loadAll()}catch(err){toast(err.message,"error")}}
 
 function bindEvents(){
@@ -1554,5 +1588,5 @@ function bindEvents(){
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void pollOrders()});
 }
 
-async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();const cached=await showCachedData();await loadAll({silent:cached});startOrderPolling();void recoverPendingDocumentIntent();}
+async function boot(){bindEvents();if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});if(!apiReady())return showLogin("Primero hay que configurar la URL del Apps Script de D9 Gestión en config.js.");if(!state.token)return showLogin();showApp();await initializeAppData();startOrderPolling();void recoverPendingDocumentIntent();}
 boot();

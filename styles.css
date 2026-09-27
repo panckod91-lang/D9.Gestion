@@ -178,4 +178,10 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:lin
 @media(max-width:760px){.test-mode-banner{top:68px}.test-mode-toggle{padding:6px;font-size:11px}.test-mode-banner strong{font-size:14px}}
 @media(max-width:520px){#btnTestMode{font-size:0;min-width:38px;height:38px;padding:4px}#btnTestMode::before{content:"🧪";font-size:19px}.test-mode-banner{font-size:12px}}
 .test-mode-d9 [data-view="maestros"],.test-mode-d9 [data-view="usuarios"],.test-mode-d9 [data-view="ofertas"],.test-mode-d9 [data-view="publicidad"],.test-mode-d9 [data-view="config"]{display:none!important}
+/* Estado de arranque y ámbito visible también en móvil. */
+.app-busy-status{position:sticky;top:76px;z-index:19;display:flex;align-items:center;gap:9px;padding:8px 20px;background:#e7f5fc;color:#07567d;border-bottom:1px solid #c9e5f4;font-size:13px;font-weight:750}
+.app-busy-status:before,.working:before{content:"";width:14px;height:14px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:d9-busy-spin .8s linear infinite}
+.working:disabled{cursor:wait}.scope-changing .content,.scope-changing .sidebar{pointer-events:none;opacity:.65}
+@keyframes d9-busy-spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.app-busy-status{top:68px;padding:8px 12px;font-size:12px}.test-mode-toggle.working{font-size:0}.test-mode-toggle.working:before{display:inline-block;font-size:initial}}
 .document-intent-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 16px;padding:12px 14px;border:2px solid #e7a726;border-radius:14px;background:#fff7df;color:#573b03}.document-intent-banner strong{font-weight:850}.document-intent-banner span{flex:1 1 240px}.document-intent-banner button{border:1px solid #bf8120;border-radius:9px;padding:7px 10px;background:#fff;color:#603e09;font-weight:750}.document-intent-banner button:first-of-type{background:#8a5907;color:#fff}
