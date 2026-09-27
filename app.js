@@ -616,8 +616,9 @@ function hydrateProductSuggestions(){fillProductDatalist("productCategoryOptions
 function openProductEditor(productId=""){
   if(!isAdmin())return toast("Esta sesión no puede modificar productos.","error");
   const product=productId?adminProducts().find(p=>String(p.id)===String(productId)):null;
+  if(productId&&!product)return toast("El producto ya no está disponible. Actualizá la lista antes de editarlo.","error");
   hydrateProductSuggestions();
-  $("#productForm").reset();$("#productDialogTitle").textContent=product?"Editar producto":"Nuevo producto";
+  $("#productForm").reset();$("#productForm").dataset.mode=product?"EDITAR":"CREAR";$("#productDialogTitle").textContent=product?"Editar producto":"Nuevo producto";
   $("#productId").value=product?.id||"";$("#productId").readOnly=!!product;$("#productName").value=product?.nombre||"";$("#productCategory").value=product?.categoria||"";$("#productBrand").value=product?.marca||"";$("#productActive").value=activeValue(product?.activo??"si")?"si":"no";
   $("#productPriceFields").innerHTML=priceLists().map(list=>`<label>${esc(list.nombre)}<input data-product-price="${esc(list.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${product?.[list.id]===undefined||product?.[list.id]===""?"":esc(numeric(product[list.id]))}"></label>`).join("");
   $("#btnSaveProduct").disabled=!sourceWritesEnabled();$("#btnSaveProduct").title=sourceWritesEnabled()?"":"Activá SOURCE_WRITES_ENABLED para guardar en la Sheet central.";
@@ -631,7 +632,7 @@ async function saveProduct(event){
   const producto={id:$("#productId").value.trim(),nombre:$("#productName").value.trim(),categoria:$("#productCategory").value.trim(),marca:$("#productBrand").value.trim(),activo:$("#productActive").value};
   $$('[data-product-price]',$("#productPriceFields")).forEach(input=>producto[input.dataset.productPrice]=input.value===""?"":numeric(input.value));
   button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");
-  try{const result=await apiPost("source_save_product",{producto});stageSourceProduct(producto);stageProductLog(result.log);toast(result.message||"Producto guardado");$("#productDialog").close();hydrateMasterFilters();renderMasters();refreshAfterMutation()}
+  try{const result=await apiPost("source_save_product",{modo:$("#productForm").dataset.mode,producto});stageSourceProduct(producto);stageProductLog(result.log);toast(result.message||"Producto guardado");$("#productDialog").close();hydrateMasterFilters();renderMasters();refreshAfterMutation()}
   catch(err){message.textContent=err.message;message.className="form-message error"}
   finally{button.disabled=false;button.textContent="Guardar producto"}
 }
@@ -682,9 +683,15 @@ function productImportHeaderIndex(headers,aliases){const wanted=aliases.map(norm
 function parseProductImportPrice(value){
   if(value===null||value===undefined||String(value).trim()==="")return {ok:true,value:0,empty:true};
   if(typeof value==="number")return Number.isFinite(value)&&value>=0?{ok:true,value}:{ok:false};
-  let text=String(value).trim().replace(/\$/g,"").replace(/\s/g,"");
-  if(text.includes(",")&&text.includes("."))text=text.replace(/\./g,"").replace(",",".");else if(text.includes(","))text=text.replace(",",".");
-  const parsed=Number(text);return Number.isFinite(parsed)&&parsed>=0?{ok:true,value:parsed}:{ok:false};
+  const text=String(value).trim().replace(/\$/g,"").replace(/\s/g,"");
+  if(/^\d{1,3}[.,]\d{3}$/.test(text))return {ok:false,ambiguous:true};
+  let normalized="";
+  if(/^\d+$/.test(text))normalized=text;
+  else if(/^\d+[.,]\d{1,8}$/.test(text))normalized=text.replace(",",".");
+  else if(/^\d{1,3}(?:\.\d{3})+,\d{1,8}$/.test(text))normalized=text.replace(/\./g,"").replace(",",".");
+  else if(/^\d{1,3}(?:,\d{3})+\.\d{1,8}$/.test(text))normalized=text.replace(/,/g,"");
+  else return {ok:false};
+  const parsed=Number(normalized);return Number.isFinite(parsed)&&parsed>=0?{ok:true,value:parsed}:{ok:false};
 }
 function productImportFinalPrice(value){return Math.round((value*(1+PRODUCT_IMPORT_IVA_RATE_D9)+Number.EPSILON)*100)/100}
 function analyzeProductImportRows(rows,fileName){
@@ -700,7 +707,7 @@ function analyzeProductImportRows(rows,fileName){
     if(!id||!name||!category){issues.push(`Fila ${rowNumber}: faltan Código, Descripción o Rubro/Categoría.`);return;}
     if(seen.has(id)){issues.push(`Código duplicado ${id} en filas ${seen.get(id)} y ${rowNumber}.`);return;}seen.set(id,rowNumber);
     const product={id,nombre:name,categoria:category};if(columns.marca>=0)product.marca=String(row[columns.marca]??"").trim();
-    let valid=true;detectedLists.forEach(list=>{const parsed=parseProductImportPrice(row[columns[list]]);if(!parsed.ok){issues.push(`Fila ${rowNumber} · ${id}: precio inválido en ${priceListLabel(list)}.`);valid=false;return;}product[list]=parsed.empty?"":productImportFinalPrice(parsed.value)});
+    let valid=true;detectedLists.forEach(list=>{const parsed=parseProductImportPrice(row[columns[list]]);if(!parsed.ok){issues.push(`Fila ${rowNumber} · ${id}: ${parsed.ambiguous?"precio de texto ambiguo (indicá los decimales, por ejemplo 3.025,00 o 3,025.00)":"precio inválido"} en ${priceListLabel(list)}.`);valid=false;return;}product[list]=parsed.empty?"":productImportFinalPrice(parsed.value)});
     if(valid){product.lista_1=numeric(product.lista_1);product.activo=product.lista_1>0?"si":"no";products.push(product)}
   });
   if(!products.length&&!issues.length)issues.push("El archivo no contiene productos para importar.");
@@ -724,7 +731,7 @@ function openProductImportPicker(){if(!isAdmin())return toast("Esta sesión no p
 async function readProductImportFile(event){
   const file=event.target.files?.[0];if(!file)return;
   const buttons=[$("#btnSelectProductImport"),$("#btnChooseProductImport")];buttons.forEach(button=>button.disabled=true);
-  try{const XLSX=await loadProductImportXlsx(),buffer=await file.arrayBuffer(),workbook=XLSX.read(buffer,{type:"array"}),sheet=workbook.Sheets[workbook.SheetNames[0]];if(!sheet)throw new Error("El archivo no contiene una hoja legible.");const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:""});state.productImport=analyzeProductImportRows(rows,file.name);renderProductImport()}catch(error){state.productImport=null;$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");const message=$("#productImportIntroMessage");message.textContent=error.message||"No se pudo leer el archivo.";message.className="form-message error"}finally{buttons.forEach(button=>button.disabled=false)}
+  try{const XLSX=await loadProductImportXlsx(),buffer=await file.arrayBuffer(),workbook=XLSX.read(buffer,{type:"array"}),sheet=workbook.Sheets[workbook.SheetNames[0]];if(!sheet)throw new Error("El archivo no contiene una hoja legible.");const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:"",blankrows:true}),rawRows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:"",blankrows:true});if(rows.length!==rawRows.length)throw new Error("No se pudieron alinear los precios numéricos del archivo. Revisá el Excel.");const priceColumns=["Lista 1","Lista 2","Lista 3"].map(list=>productImportHeaderIndex(rows[0]||[],[list,list.replace(" ",""),list.toLowerCase().replace(" ","_")])).filter(index=>index>=0);rows.slice(1).forEach((row,index)=>priceColumns.forEach(column=>{row[column]=rawRows[index+1]?.[column]??""}));state.productImport=analyzeProductImportRows(rows,file.name);renderProductImport()}catch(error){state.productImport=null;$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");const message=$("#productImportIntroMessage");message.textContent=error.message||"No se pudo leer el archivo.";message.className="form-message error"}finally{buttons.forEach(button=>button.disabled=false)}
 }
 function updateProductImportApplyState(){$("#btnApplyProductImport").disabled=!state.productImport||state.productImport.issues.length>0||!state.productImport.products.length||!$("#productImportConfirm").checked||!sourceWritesEnabled()}
 async function applyProductImport(){
