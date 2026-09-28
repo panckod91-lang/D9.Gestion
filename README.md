@@ -1,31 +1,38 @@
-# D9 Gestión v0.19.9 — UX y tiempos de respuesta
+# D9 Gestión v0.20.0 — Estadísticas
 
-Paquete completo basado en v0.19.8. D9 Pedidos v1.5.43 no fue modificado. No se desplegó ni se ejecutó sobre datos reales.
+Base exacta: D9 Gestión v0.19.9. D9 Pedidos y D9 Admin no cambian. No se modificaron comprobantes, intenciones, movimientos, Cuenta Corriente, autenticación ni circuitos de escritura.
 
-## Diagnóstico y cambios
+## Qué hace
 
-- Al arrancar con sesión existente, el frontend esperaba la lectura de IndexedDB antes de iniciar el único `bootstrap`. Ahora la lectura local y la solicitud comienzan juntas; la fotografía local sigue mostrándose mientras se espera la respuesta autoritativa. En móvil, el badge de sincronización estaba oculto: se agregó un estado breve visible durante la inicialización.
-- El cambio REAL/TEST ya hacía un `bootstrap` completo necesario para confirmar el ámbito y aislar datos. Ahora muestra estado ocupado inmediatamente, evita doble toque, mantiene el aspecto del ámbito anterior y bloquea acciones hasta recibir la confirmación. Polling y lecturas históricas iniciadas antes del cambio no pueden aplicar respuestas tardías en el nuevo ámbito. No se introduce caché cruzada entre ámbitos.
-- Guardar comprobante, recibo, cliente y producto ahora indica actividad con un spinner en los botones que ya impedían doble ejecución. Anular muestra estado ocupado y evita repetir el gesto durante la respuesta. El mensaje diferencia confirmación de guardado y actualización posterior. La identidad de intención, recuperación, controles backend y efecto económico permanecen iguales.
-- Home → Pedidos recientes se ordena por fecha y hora descendente, sin alterar el período ni el contenido.
-- Comprobantes: “Ver anulados” activa los filtros existentes sobre todo el historial; “Volver a vigentes” recupera Recientes. El detalle y las relaciones ya existentes se reutilizan. Los anulados no ofrecen anulación adicional.
-- Los tiempos de `bootstrap` y principales escrituras vistos desde el navegador quedan disponibles en `window.D9_GESTION_TIMINGS` (últimas 30 mediciones en milisegundos, sin payload ni token). Miden red + Apps Script; no separan el costo interno de Sheets.
+Reportes → Estadísticas ofrece dos fuentes independientes: **Pedidos** y **Ventas directas**. Nunca suma ambas. Cada fuente tiene Hoy, Últimos 7 días, Mes actual, Año actual y Todo; importe, cantidad de registros, ticket promedio, líneas, evolución y rankings de productos por importe/cantidad, vendedores/usuarios y clientes. Los Pedidos muestran además cuántos anulados quedaron fuera. La cantidad de Pedido se denomina «cantidad» porque puede indicar un bulto previo al pesaje; no se infieren kilos ni unidades finales.
 
-El backend ejecuta `d9gRequireSession_`, toma un `ScriptLock`, reconcilia `comprobantes_intenciones` y luego lee/valida/escribe Sheets. Son controles indispensables. Se conservaron. No se redujo el tiempo del backend por hipótesis. El eventual NetworkError transitorio no quedó reproducido ni atribuido a una causa concreta; se mantuvo el retry de lectura existente y no se escondieron errores.
+Las estadísticas siguen el ámbito REAL/TEST ya autorizado y filtrado en backend. Las consultas de historial ocurren sólo al abrir Estadísticas y se conservan en memoria por usuario y ámbito durante la sesión; cambiar período o fuente no vuelve a leer Sheets. «Actualizar» fuerza una nueva lectura. No hay polling de Estadísticas ni nueva Sheet. Una respuesta tardía de otro ámbito se descarta. Si falla la actualización, se conservan los datos anteriores y el error queda visible.
 
-## Archivos
+## Fuentes y comparación con Admin
 
-Cambiaron `app.js`, `operations-ui.js`, `index.html`, `styles.css`, `config.js`, `sw.js`, identificador y este README. Se añadió `tests/ux-performance.js`. `apps-script/Code.gs` y `apps-script/Code.gs.txt` son copias idénticas y sin cambios respecto de v0.19.8. Otros archivos son copias del paquete anterior.
+`pedidos` ya agrupaba los renglones por `pedido_id`, incluía `total_pedido` histórico, estado y vendedor. `ventas` ya agrupaba por `venta_id`, con importe, usuario e items históricos. El Apps Script vigente filtraba REAL/TEST en ambos endpoints. Se amplió **únicamente lectura** de `pedidos` con `history:true`, simétrica al historial existente de `ventas`, para devolver todo el período solicitado sin depender del bootstrap de tres días.
+
+La vieja Admin usa suma de `total_item` por renglón y agrupa productos/vendedores/clientes mayormente por nombre. La nueva pantalla utiliza `total_pedido` agrupado cuando existe y el ID histórico como clave de ranking cuando está disponible. Cuando ambos importes coinciden y los nombres no cambiaron, cantidad de pedidos, líneas, anulados y rankings deberían ser comparables en período Todo. Descuentos, importes históricos de cabecera o cambios de nombre/ID pueden explicar diferencias. No se hizo comparación numérica con la Sheet real en este entorno.
+
+Un registro sin fecha interpretable participa sólo en «Todo» y no puede ubicarse en la evolución; la pantalla indica cuántos hay. Una venta ocasional sin ID de cliente se agrupa por nombre descriptivo; no se inventa una identidad permanente.
+
+## Archivos y estructura
+
+- Modificados: `app.js` (abrir Reportes), `index.html`, `styles.css`, `config.js`, `sw.js`, `apps-script/Code.gs`.
+- Nuevo: `statistics.js`, `tests/statistics.js`.
+- `apps-script/Code.gs.txt` es copia idéntica del Code.gs final. El resto del frontend y pruebas anteriores provienen del ZIP v0.19.9.
+- Hojas, columnas, contadores, propiedades, secretos y URL: **sin cambios**. No ejecutar `setupD9Gestion()` ni otra función de migración.
+
+## Despliegue seguro
+
+1. Reemplazar Código.gs **sólo en el proyecto D9 Gestión** por `apps-script/Code.gs` (o el mismo contenido TXT). Guardar y actualizar la implementación web existente a una versión nueva; mantener su URL y configuración. No ejecutar setup.
+2. Reemplazar el frontend completo de D9 Gestión con este ZIP. Actualizar PWA/caché hasta ver `v0.20.0`.
+3. No actualizar D9 Pedidos, Admin, Worker ni Fiscal.
+
+La v0.19.9 de frontend con backend nuevo conserva su flujo anterior. El frontend v0.20.0 con backend anterior muestra un error claro al intentar abrir Estadísticas por no confirmar `history:true`; las demás secciones no dependen de esa lectura. Por eso el backend va primero.
 
 ## Pruebas
 
-Harness local: arranque paralelo y estado visible; cambio de ámbito con demora, doble gesto y fallo de red; orden horario; acceso a anulados y ausencia de acción de anular de nuevo. Pasaron las pruebas de recuperación/idempotencia y fault injection del Bloque 4, y las de Producto/Importación del Bloque 5. Sintaxis JS verificada. No se midieron tiempos representativos de Apps Script/Sheets ni se hizo validación visual en navegador o Android en este entorno.
+Sintaxis JS de frontend y Apps Script; `node tests/statistics.js` (períodos, anulados, rankings, cantidad decimal, separación de fuentes, ámbito REAL/TEST en ambos endpoints y 10.400 renglones simulados); `node tests/ux-performance.js` (regresión focalizada del módulo Reportes y cambio de ámbito): aprobados. El cálculo local de la muestra de 10.400 líneas tardó aproximadamente 14 ms en este equipo; no representa tiempo de red/Sheets reales. No hubo pruebas visuales en navegador/Android ni lecturas de la Sheet real.
 
-## Instalación
-
-1. Respaldar la versión v0.19.8 actual.
-2. Reemplazar sólo el **frontend completo de D9 Gestión** con este ZIP y recargar forzadamente la PWA hasta ver v0.19.9.
-3. Mantener sin cambios el Apps Script vigente de **D9 Gestión**. El archivo `apps-script/Code.gs.txt` está incluido únicamente como respaldo autocontenido; no hace falta copiarlo ni crear versión del despliegue web.
-4. No ejecutar `setupD9Gestion()` ni otra función manual. No hay migraciones, columnas, hojas o contadores nuevos. Pedidos y Worker siguen sin cambios.
-
-Prueba física corta: abrir en Android y comprobar el aviso inmediato; cambiar REAL→TEST→REAL y ver el estado ocupado; guardar un comprobante TEST y verificar una sola operación/movimiento; anularlo, comprobar estado y una sola reversión; probar NC/recibo TEST si se usan habitualmente; entrar a Comprobantes → Ver anulados y abrir el detalle; confirmar el orden horario de Pedidos recientes. Los tiempos anteriores de 12–16 segundos sólo podrán compararse de forma representativa en el dispositivo y con Sheets reales.
+Prueba física sugerida en Gestión: en REAL abrir Reportes → Estadísticas, revisar Pedidos Todo contra Admin (considerando criterios anteriores); cambiar período y fuente; actualizar; cambiar a TEST y verificar que los números sean exclusivamente TEST; regresar a REAL; comprobar escritorio y móvil. La primera carga del historial puede tardar más que el cambio posterior de período.

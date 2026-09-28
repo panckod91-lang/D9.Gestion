@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=199">
+  <link rel="stylesheet" href="styles.css?v=200">
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -232,8 +232,19 @@
             <button type="button" class="report-choice" disabled><span>💵</span><div><strong>Cobranzas</strong><small>Próximamente</small></div></button>
             <button type="button" class="report-choice" disabled><span>📒</span><div><strong>Cuentas corrientes</strong><small>Próximamente</small></div></button>
             <button type="button" class="report-choice" disabled><span>🏦</span><div><strong>Cheques</strong><small>Próximamente</small></div></button>
-            <button type="button" class="report-choice" disabled><span>📈</span><div><strong>Estadísticas</strong><small>Próximamente</small></div></button>
+            <button type="button" class="report-choice active" data-report-open="statistics"><span>📈</span><div><strong>Estadísticas</strong><small>Pedidos y Ventas directas, separados por período.</small></div><b>›</b></button>
           </div>
+          <section id="statisticsReportView" class="panel report-panel report-detail statistics-report hidden">
+            <button class="report-back" type="button" data-report-back>‹ Todos los reportes</button>
+            <div class="panel-head"><div><h3>Estadísticas</h3><p>Actividad registrada en D9. Pedidos y Ventas directas se consultan por separado.</p></div></div>
+            <div class="statistics-toolbar">
+              <div class="statistics-sources" role="group" aria-label="Fuente de estadísticas"><button id="statsOrders" type="button" class="active" data-stats-source="pedidos">📦 Pedidos</button><button id="statsSales" type="button" data-stats-source="ventas">🛒 Ventas directas</button></div>
+              <label>Período<select id="statsPeriod"><option value="today">Hoy</option><option value="7days">Últimos 7 días</option><option value="month" selected>Mes actual</option><option value="year">Año actual</option><option value="all">Todo</option></select></label>
+              <button id="btnRefreshStatistics" class="btn secondary" type="button">↻ Actualizar</button>
+            </div>
+            <div id="statisticsStatus" class="statistics-status" role="status" aria-live="polite">Elegí una fuente para consultar su historial.</div>
+            <div id="statisticsContent" class="hidden"></div>
+          </section>
           <section id="salesReportView" class="panel report-panel report-detail hidden">
             <button class="report-back" type="button" data-report-back>‹ Todos los reportes</button>
             <div class="panel-head"><div><h3>Ventas por vendedor</h3><p>Elegí los filtros y después consultá el reporte.</p></div></div>
@@ -679,10 +690,11 @@ Distribuidora D9</textarea></label>
   <dialog id="priceListBrandDialog" class="dialog price-filter-dialog"><div class="dialog-head"><div><small>LISTA DE PRECIOS</small><h2>Marcas</h2></div><button type="button" class="dialog-close" data-close="priceListBrandDialog">×</button></div><p class="helper">Podés combinar una o varias marcas.</p><div id="priceListBrandOptions" class="price-filter-options"></div><div class="dialog-actions"><button id="btnApplyPriceListBrands" type="button" class="btn primary">Aplicar marcas</button></div></dialog>
   <dialog id="testReviewDialog" class="dialog wide-dialog"><div class="dialog-head"><div><small>SOLO SUPERADMIN</small><h2>Revisión de clientes TEST</h2></div><button type="button" class="dialog-close" data-close="testReviewDialog">×</button></div><p>Vista previa de sólo lectura. Seleccioná IDs únicamente tras verificar el respaldo de las dos Sheets. Los nombres sugieren candidatos: no se clasifican solos.</p><div id="testReviewCandidates" class="test-review-list"></div><p id="testReviewCounts" class="helper"></p><p id="testReviewAmbiguous" class="helper"></p><p id="testReviewClosures" class="helper"></p><div class="dialog-actions"><button type="button" class="btn secondary" data-close="testReviewDialog">Cancelar</button><button id="btnClassifyTestClients" type="button" class="btn primary">Clasificar IDs seleccionados</button></div></dialog>
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=199"></script>
+  <script src="config.js?v=200"></script>
   <script src="operations-ui.js?v=199"></script>
   <script src="price-list.js?v=171"></script>
   <script src="offers-pdf.js?v=172"></script>
-  <script src="app.js?v=199"></script>
+  <script src="app.js?v=200"></script>
+  <script src="statistics.js?v=200"></script>
 </body>
 </html>
