@@ -333,13 +333,15 @@ async function loadAll(options={}) {
   const generation=scopeGeneration;
   try {
     const data=await (options.request||apiRead("bootstrap"));
-    if(generation!==scopeGeneration)return;
+    if(generation!==scopeGeneration)return false;
     applyBootstrap(data);state.cacheLoaded=true;saveCurrentCache();
     setSync(`Actualizado ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`);
+    return true;
   } catch(err) {
-    if(generation!==scopeGeneration)return;
+    if(generation!==scopeGeneration)return false;
     if (/sesión|token|autoriz/i.test(err.message)) { clearSession(); showLogin("La sesión venció. Volvé a ingresar."); }
-    else {setSync(state.cacheLoaded?"Datos guardados · sin conexión":"Error de conexión",true);toast(err.message,"error")}
+    else {setSync(options.importRefresh?"Vista pendiente de actualizar":state.cacheLoaded?"Datos guardados · sin conexión":"Error de conexión",true);if(!options.importRefresh)toast(err.message,"error")}
+    return false;
   }
 }
 async function initializeAppData(){
@@ -689,6 +691,8 @@ async function applyBulkPrices(event){
 const PRODUCT_IMPORT_IVA_RATE_D9=.21;
 const PRODUCT_IMPORT_XLSX_URL="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
 let productImportXlsxPromise=null;
+let productImportRefreshPending=false;
+let productImportRefreshing=false;
 function loadProductImportXlsx(){
   if(window.XLSX)return Promise.resolve(window.XLSX);
   if(productImportXlsxPromise)return productImportXlsxPromise;
@@ -747,7 +751,7 @@ function renderProductImport(){
   $("#productImportPreview").className="bulk-preview";$("#productImportPreview").innerHTML=model.products.length?`<div class="product-import-table"><div class="product-import-row head" style="--import-lists:${model.detectedLists.length}"><span>Producto</span>${model.detectedLists.map(list=>`<span>${esc(priceListLabel(list))}<small>Final c/IVA</small></span>`).join("")}<span>Estado</span></div>${model.products.slice(0,80).map(product=>`<div class="product-import-row" style="--import-lists:${model.detectedLists.length}"><span><b>${esc(product.id)}</b><small>${esc(product.nombre)} · ${esc(product.categoria)}</small></span>${model.detectedLists.map(list=>`<span>${numeric(product[list])>0?money(product[list]):"—"}</span>`).join("")}<span><b class="${activeValue(product.activo)?"positive":"negative"}">${activeValue(product.activo)?"Activo":"Oculto"}</b></span></div>`).join("")}</div>${model.products.length>80?`<p class="helper">Se muestran 80 de ${model.products.length} productos.</p>`:""}`:'<div class="empty">Sin filas válidas.</div>';
   $("#productImportConfirm").checked=false;$("#btnApplyProductImport").disabled=true;
 }
-function resetProductImportAssistant(){state.productImport=null;$("#productImportFile").value="";$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");$("#productImportConfirm").checked=false;$("#btnApplyProductImport").disabled=true;const message=$("#productImportIntroMessage");message.textContent="";message.className="form-message hidden"}
+function resetProductImportAssistant(){productImportRefreshPending=false;productImportRefreshing=false;state.productImport=null;$("#productImportFile").value="";$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");$("#productImportConfirm").checked=false;$("#btnApplyProductImport").disabled=true;$("#btnApplyProductImport").textContent="Importar lista";const message=$("#productImportIntroMessage");message.textContent="";message.className="form-message hidden";$("#productImportRefreshMessage").className="form-message hidden"}
 function openProductImportAssistant(){if(!isAdmin())return toast("Esta sesión no puede importar productos.","error");resetProductImportAssistant();$("#productImportDialog").showModal()}
 function openProductImportPicker(){if(!isAdmin())return toast("Esta sesión no puede importar productos.","error");$("#productImportFile").value="";$("#productImportFile").click()}
 async function readProductImportFile(event){
@@ -755,12 +759,23 @@ async function readProductImportFile(event){
   const buttons=[$("#btnSelectProductImport"),$("#btnChooseProductImport")];buttons.forEach(button=>button.disabled=true);
   try{const XLSX=await loadProductImportXlsx(),buffer=await file.arrayBuffer(),workbook=XLSX.read(buffer,{type:"array"}),sheet=workbook.Sheets[workbook.SheetNames[0]];if(!sheet)throw new Error("El archivo no contiene una hoja legible.");const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:"",blankrows:true}),rawRows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:"",blankrows:true});if(rows.length!==rawRows.length)throw new Error("No se pudieron alinear los precios numéricos del archivo. Revisá el Excel.");const priceColumns=["Lista 1","Lista 2","Lista 3"].map(list=>productImportHeaderIndex(rows[0]||[],[list,list.replace(" ",""),list.toLowerCase().replace(" ","_")])).filter(index=>index>=0);rows.slice(1).forEach((row,index)=>priceColumns.forEach(column=>{row[column]=rawRows[index+1]?.[column]??""}));state.productImport=analyzeProductImportRows(rows,file.name);renderProductImport()}catch(error){state.productImport=null;$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");const message=$("#productImportIntroMessage");message.textContent=error.message||"No se pudo leer el archivo.";message.className="form-message error"}finally{buttons.forEach(button=>button.disabled=false)}
 }
-function updateProductImportApplyState(){$("#btnApplyProductImport").disabled=!state.productImport||state.productImport.issues.length>0||!state.productImport.products.length||!$("#productImportConfirm").checked||!sourceWritesEnabled()}
+function updateProductImportApplyState(){$("#btnApplyProductImport").disabled=productImportRefreshing||(!productImportRefreshPending&&(!state.productImport||state.productImport.issues.length>0||!state.productImport.products.length||!$("#productImportConfirm").checked||!sourceWritesEnabled()))}
+async function refreshProductImportView(result){
+  productImportRefreshing=true;const button=$("#btnApplyProductImport"),message=$("#productImportRefreshMessage");button.disabled=true;button.textContent="Actualizando vista…";message.textContent="La lista se guardó correctamente. Actualizando vista…";message.className="form-message working";
+  const refreshed=await loadAll({silent:true,importRefresh:true});
+  productImportRefreshing=false;
+  if(refreshed){productImportRefreshPending=false;$("#productImportDialog").close();toast(result?`Lista importada: ${result.creados||0} nuevos, ${result.actualizados||0} actualizados y ${result.ocultos_ausentes||0} ausentes ocultos.`:"Lista importada y vista actualizada.")}
+  else{productImportRefreshPending=true;message.textContent="La lista se guardó correctamente, pero no se pudo actualizar la vista.";message.className="form-message error";button.textContent="Reintentar actualización";button.disabled=false}
+}
 async function applyProductImport(){
+  if(productImportRefreshing)return;
+  if(productImportRefreshPending)return refreshProductImportView();
   const model=state.productImport;if(!model||model.issues.length||!model.products.length)return;if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
   if(!confirm(`¿Importar ${model.products.length} productos y ocultar ${model.summary.hiddenAbsent} productos ausentes?`))return;
-  const button=$("#btnApplyProductImport");button.disabled=true;button.textContent="Importando…";
-  try{const result=await apiPost("source_import_products",{productos:model.products,listas:model.detectedLists});stageProductLog(result.log);toast(`Lista importada: ${result.creados||0} nuevos, ${result.actualizados||0} actualizados y ${result.ocultos_ausentes||0} ausentes ocultos.`);$("#productImportDialog").close();await loadAll()}catch(error){toast(error.message,"error")}finally{button.textContent="Importar lista";updateProductImportApplyState()}
+  const button=$("#btnApplyProductImport");productImportRefreshing=true;button.disabled=true;button.textContent="Importando…";
+  let result;
+  try{result=await apiPost("source_import_products",{productos:model.products,listas:model.detectedLists});stageProductLog(result.log)}catch(error){productImportRefreshing=false;toast(error.message,"error");button.textContent="Importar lista";updateProductImportApplyState();return}
+  await refreshProductImportView(result);
 }
 
 function adminClients(){return state.source.clientes_admin?.length?state.source.clientes_admin:state.source.clientes}
