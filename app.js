@@ -247,7 +247,7 @@ function renderTestModeD9(){
 }
 async function toggleTestModeD9(){
   if(!state.permissions?.super_admin||scopeSwitchBusy)return;
-  if(documentIntentBusy||$$(".btn.working").length)return toast("Esperá a que termine la operación actual antes de cambiar de ámbito.","error");
+  if(documentIntentBusy||catalogMutationBusy||catalogRefreshBusy||$$(".btn.working").length)return toast("Esperá a que termine la operación actual antes de cambiar de ámbito.","error");
   const previous=state.testMode;scopeDisplayMode=previous;scopeSwitchBusy=true;scopeGeneration++;stopOrderPolling();
   state.testMode=!previous;
   document.body.classList.add("scope-changing");renderTestModeD9();setAppBusy(state.testMode?"Cambiando a Modo Pruebas…":"Volviendo a datos comerciales…");
@@ -330,14 +330,14 @@ async function showCachedData() {
 }
 async function loadAll(options={}) {
   if(!options.silent)setSync("Sincronizando…");
-  const generation=scopeGeneration,catalogEpoch=state.catalogEpoch||0;
+  const generation=scopeGeneration,catalogEpoch=state.catalogEpoch||0,token=state.token;
   try {
     const data=await (options.request||apiRead("bootstrap"));
-    if(generation!==scopeGeneration||catalogEpoch!==(state.catalogEpoch||0))return;
+    if(generation!==scopeGeneration||token!==state.token||catalogEpoch!==(state.catalogEpoch||0))return;
     applyBootstrap(data);state.cacheLoaded=true;saveCurrentCache();
     setSync(`Actualizado ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`);
   } catch(err) {
-    if(generation!==scopeGeneration)return;
+    if(generation!==scopeGeneration||token!==state.token||catalogEpoch!==(state.catalogEpoch||0))return;
     if (/sesión|token|autoriz/i.test(err.message)) { clearSession(); showLogin("La sesión venció. Volvé a ingresar."); }
     else {setSync(state.cacheLoaded?"Datos guardados · sin conexión":"Error de conexión",true);toast(err.message,"error")}
   }
@@ -757,19 +757,19 @@ function openProductImportPicker(){if(!isAdmin())return toast("Esta sesión no p
 async function readProductImportFile(event){
   const file=event.target.files?.[0];if(!file)return;
   const buttons=[$("#btnSelectProductImport"),$("#btnChooseProductImport")];buttons.forEach(button=>button.disabled=true);
-  try{const generation=scopeGeneration,central=await apiRead("bootstrap");if(generation!==scopeGeneration)throw new Error("Cambió la sesión o ámbito durante la lectura.");applyBootstrap(central);saveCurrentCache();const XLSX=await loadProductImportXlsx(),buffer=await file.arrayBuffer(),workbook=XLSX.read(buffer,{type:"array"}),sheet=workbook.Sheets[workbook.SheetNames[0]];if(!sheet)throw new Error("El archivo no contiene una hoja legible.");const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:"",blankrows:true}),rawRows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:"",blankrows:true});if(rows.length!==rawRows.length)throw new Error("No se pudieron alinear los precios numéricos del archivo. Revisá el Excel.");const priceColumns=["Lista 1","Lista 2","Lista 3"].map(list=>productImportHeaderIndex(rows[0]||[],[list,list.replace(" ",""),list.toLowerCase().replace(" ","_")])).filter(index=>index>=0);rows.slice(1).forEach((row,index)=>priceColumns.forEach(column=>{row[column]=rawRows[index+1]?.[column]??""}));state.productImport=analyzeProductImportRows(rows,file.name);renderProductImport()}catch(error){state.productImport=null;$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");const message=$("#productImportIntroMessage");message.textContent=error.message||"No se pudo leer el archivo.";message.className="form-message error"}finally{buttons.forEach(button=>button.disabled=false)}
+  try{const generation=scopeGeneration,token=state.token,epoch=state.catalogEpoch||0,central=await apiRead("bootstrap");if(generation!==scopeGeneration||token!==state.token||epoch!==(state.catalogEpoch||0))throw new Error("Cambió la sesión, el ámbito o el maestro durante la lectura.");applyBootstrap(central);saveCurrentCache();const XLSX=await loadProductImportXlsx(),buffer=await file.arrayBuffer(),workbook=XLSX.read(buffer,{type:"array"}),sheet=workbook.Sheets[workbook.SheetNames[0]];if(!sheet)throw new Error("El archivo no contiene una hoja legible.");const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:"",blankrows:true}),rawRows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:"",blankrows:true});if(rows.length!==rawRows.length)throw new Error("No se pudieron alinear los precios numéricos del archivo. Revisá el Excel.");const priceColumns=["Lista 1","Lista 2","Lista 3"].map(list=>productImportHeaderIndex(rows[0]||[],[list,list.replace(" ",""),list.toLowerCase().replace(" ","_")])).filter(index=>index>=0);rows.slice(1).forEach((row,index)=>priceColumns.forEach(column=>{row[column]=rawRows[index+1]?.[column]??""}));if(generation!==scopeGeneration||token!==state.token||epoch!==(state.catalogEpoch||0))throw new Error("Cambió la sesión, el ámbito o el maestro durante la lectura.");state.productImport=analyzeProductImportRows(rows,file.name);renderProductImport()}catch(error){state.productImport=null;$("#productImportIntro").classList.remove("hidden");$("#productImportReview").classList.add("hidden");const message=$("#productImportIntroMessage");message.textContent=error.message||"No se pudo leer el archivo.";message.className="form-message error"}finally{buttons.forEach(button=>button.disabled=false)}
 }
 function updateProductImportApplyState(){$("#btnApplyProductImport").disabled=!state.productImport||state.productImport.issues.length>0||!state.productImport.products.length||!$("#productImportConfirm").checked||!sourceWritesEnabled()}
 async function applyProductImport(){
-  const model=state.productImport;if(catalogPending())return showCatalogRefreshWarning("Verificá primero la operación anterior.");if(!model||model.issues.length||!model.products.length)return;if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
+  const model=state.productImport;if(catalogMutationBusy)return;if(catalogPending())return showCatalogRefreshWarning("Verificá primero la operación anterior.");if(!model||model.issues.length||!model.products.length)return;if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");
   if(!confirm(`¿Importar ${model.products.length} productos y ocultar ${model.summary.hiddenAbsent} productos ausentes?`))return;
   const button=$("#btnApplyProductImport");button.disabled=true;button.textContent="Importando…";
-  state.catalogEpoch=(state.catalogEpoch||0)+1;
   const pending={operacion_id:model.operacion_id||(model.operacion_id=catalogOperationId()),tipo:"IMPORTACION"};
-  localStorage.setItem(catalogPendingKey(),JSON.stringify(pending));
+  try{saveCatalogPending(pending)}catch(error){button.textContent="Importar lista";updateProductImportApplyState();return toast(error.message,"error")}
+  catalogMutationBusy=true;state.catalogEpoch=(state.catalogEpoch||0)+1;
   try{const result=await apiPost("source_import_products",{productos:model.products,listas:model.detectedLists,archivo:model.fileName,operacion_id:pending.operacion_id});stageProductLog(result.log);$("#productImportDialog").close();await refreshCatalogAfterWrite(pending,"Lista importada y vista actualizada.")}
   catch(error){$("#productImportDialog").close();showCatalogRefreshWarning("La importación no quedó confirmada: "+error.message+". Verificá el resultado antes de volver a importar.")}
-  finally{button.textContent="Importar lista";updateProductImportApplyState()}
+  finally{catalogMutationBusy=false;state.catalogEpoch=(state.catalogEpoch||0)+1;button.textContent="Importar lista";updateProductImportApplyState()}
 
 }
 
