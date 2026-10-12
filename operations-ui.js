@@ -162,7 +162,7 @@ function showOperationsDetail(id,autoPrint=false,actionsOnly=false,related=false
   if(op.origen_venta_id)fields.push(["Venta de origen",op.origen_venta_id]);
   const back=operationsUI.trail.length>1?'<button type="button" class="mini-btn docs-back" data-doc-back>← Volver al comprobante anterior</button>':"";
   const body=back+detailHeader(fields)+(actionsOnly?"":itemsTable(operationItems(id)))+(op.observaciones?`<p>${esc(op.observaciones)}</p>`:"")+docsRelationsHtml(op);
-  const actions=`<button type="button" class="btn primary" data-operation-print="${esc(id)}">Imprimir media A4</button>${canShareOperationPdf(op)?`<button type="button" class="btn secondary" data-operation-share="${esc(id)}">Compartir PDF</button>`:""}${docsActionsHtml(op)}`;
+  const actions=`<button type="button" class="btn primary" data-operation-print="${esc(id)}">Imprimir media A4</button>${canShareOperationPdf(op)?`<button type="button" class="btn secondary" data-operation-share="${esc(id)}">Compartir PDF</button><button type="button" class="btn secondary" data-operation-download="${esc(id)}">Descargar PDF</button>`:""}${docsActionsHtml(op)}`;
   $("#detailTitle").textContent=`${actionsOnly?"Acciones · ":""}${formatOperationNumber(op.numero)}`;
   $("#detailBody").innerHTML=body;$("#detailActions").innerHTML=actions;
   $("#detailDialog").classList.add("docs-detail");
