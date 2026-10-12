@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto');
+const raw=fs.readFileSync(require('path').join(__dirname,'../app.js'),'utf8').replace(/\nboot\(\);\s*$/,'');
+const storage=new Map(),localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
+const dom={classList:{toggle(){}},open:false};const context=vm.createContext({window:{D9_GESTION_CONFIG:{}},document:{querySelector:()=>dom,querySelectorAll:()=>[]},localStorage,crypto:crypto.webcrypto,Uint8Array,Intl,Date,Number,JSON,console,setTimeout,clearTimeout});vm.runInContext(raw,context);
+vm.runInContext("state.user={id:'U',nombre:'Ale'};state.token='T';",context);
+const id=vm.runInContext('documentIntentId()',context);assert.match(id,/^DOCI-[0-9a-f]{32}$/);
+vm.runInContext(`persistDocumentIntent({intencion_id:'${id}',tipo:'REMITO'});`,context);assert.strictEqual(storage.size,1);assert.strictEqual(vm.runInContext('pendingDocumentIntent().payload.intencion_id',context),id);
+vm.runInContext("state.testMode=true",context);assert.strictEqual(vm.runInContext('pendingDocumentIntent()',context),null);vm.runInContext("state.testMode=false",context);
+let calls=[];context.fakeCall=async (action,payload)=>{calls.push({action,payload});return {ok:true,operacion_id:'OP-1',numero:'R-00000001'}};
+vm.runInContext("apiPost=fakeCall;loadAll=async()=>{};toast=()=>{};",context);
+(async()=>{await vm.runInContext('recoverPendingDocumentIntent()',context);assert.strictEqual(calls.length,1);assert.strictEqual(calls[0].payload.intencion_id,id);assert.strictEqual(vm.runInContext('pendingDocumentIntent()',context),null);vm.runInContext(`persistDocumentIntent({intencion_id:'${id}',tipo:'REMITO'});`,context);context.fakeCall=async()=>{throw Error('timeout')};vm.runInContext('apiPost=fakeCall',context);await vm.runInContext('recoverPendingDocumentIntent()',context);assert.strictEqual(vm.runInContext('pendingDocumentIntent().payload.intencion_id',context),id);console.log('frontend: identidad persistida, aislada TEST/REAL, recuperación y error incierto conservado OK')})().catch(e=>{console.error(e);process.exit(1)});

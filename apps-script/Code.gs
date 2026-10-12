@@ -1,6 +1,6 @@
 /*******************************************************
  * D9 GESTIÓN — APPS SCRIPT
- * Versión: 0.20.4
+ * Versión: 0.20.0
  * NO CONFUNDIR CON D9 PEDIDOS
  *******************************************************/
 
@@ -31,7 +31,7 @@ const D9G_HEADERS = Object.freeze({
 function doGet(e) {
   try {
     const action = d9gText_(e && e.parameter && e.parameter.action).toLowerCase();
-    if (!action || action === "status") return d9gJson_({ok:true,status:"D9 Gestión Script activo",version:"0.20.4"});
+    if (!action || action === "status") return d9gJson_({ok:true,status:"D9 Gestión Script activo",version:"0.20.0"});
     return d9gJson_({ok:false,error:"Las lecturas autenticadas de D9 Gestión requieren POST."});
   } catch (err) { return d9gJson_({ok:false,error:String(err && err.message || err)}); }
 }
@@ -53,7 +53,6 @@ function doPost(e) {
     lock.waitLock(20000);
     try {
       if (action === "cancelar_intencion_comprobante") return d9gJson_(d9gCancelDocumentIntent_(session,data));
-      if(action === "bootstrap" || action.indexOf("source_")===0)d9gCatalogRecover_();
       d9gReconcileDocumentIntents_(d9gGestion_());
       if (action === "bootstrap") return d9gJson_(d9gBootstrap_(session,data));
       if (action === "finanzas") return d9gJson_(d9gFinancialData_(session,data));
@@ -68,10 +67,6 @@ function doPost(e) {
       if (action === "resolve_operation_commission") return d9gJson_(d9gResolveOperationCommission_(session,data));
       if (action === "source_save_product") return d9gJson_(d9gSourceSaveProduct_(session,data));
       if (action === "source_bulk_prices") return d9gJson_(d9gSourceBulkPrices_(session,data));
-      if (action === "source_catalog_history") return d9gJson_(d9gCatalogHistory_(session));
-      if (action === "source_catalog_preview") return d9gJson_(d9gCatalogPreview_(session,data));
-      if (action === "source_catalog_restore") return d9gJson_(d9gCatalogRestore_(session,data));
-      if (action === "source_catalog_result") return d9gJson_(d9gCatalogResult_(session,data));
       if (action === "source_import_products") return d9gJson_(d9gSourceImportProducts_(session,data));
       if (action === "source_save_client") return d9gJson_(d9gSourceSaveClient_(session,data));
       if (action === "source_save_user") return d9gJson_(d9gSourceSaveUser_(session,data));
@@ -278,7 +273,7 @@ function d9gBootstrap_(session,data) {
     payments=payments.filter(p=>receiptIds[d9gText_(p.recibo_id)]);const paymentIds={};payments.forEach(p=>paymentIds[d9gText_(p.pago_id)]=true);
     checks=checks.filter(c=>paymentIds[d9gText_(c.pago_id)]);movements=[];
   }
-  return {ok:true,timestamp:d9gNow_(),user:session,permissions:{source_admin:admin,gestion_admin:admin,super_admin:d9gIsSuperAdminUser_(session),can_issue_documents:canIssue,source_writes_enabled:d9gSourceWritesEnabled_(),ambito:scope,ambito_revision:d9gTestScopeRevision_(source)},source:{clientes:clients,clientes_admin:admin?visibleClients:clients,productos:products,productos_admin:admin?allProducts:products,productos_revision:admin?d9gCatalogHash_(allProducts):"",price_lists:priceLists,usuarios:users,usuarios_admin:admin?allUsers.map(d9gPublicUser_):users,pedidos:orders,pedidos_revision:ordersRevision.revision,ventas:sales,ventas_revision:salesRevision.revision,ofertas:offers,publicidad:publicidad},gestion:{operaciones:operations,items:items,recibos:receipts,pagos:payments,cheques:checks,movimientos:movements,comisiones_reglas:admin?d9gReadObjects_(gestion,"comisiones_reglas",false):[],comisiones_cierres:admin&&scope==="REAL"?d9gTestVisibleClosures_(gestion,testIds,refs):[],comisiones_detalle:admin?d9gTestFilter_(d9gReadObjects_(gestion,"comisiones_detalle",false),scope,testIds,refs):[],productos_log:admin?d9gProductLogs_(gestion):[],config:d9gReadKeyValue_(gestion,"config")}};
+  return {ok:true,timestamp:d9gNow_(),user:session,permissions:{source_admin:admin,gestion_admin:admin,super_admin:d9gIsSuperAdminUser_(session),can_issue_documents:canIssue,source_writes_enabled:d9gSourceWritesEnabled_(),ambito:scope,ambito_revision:d9gTestScopeRevision_(source)},source:{clientes:clients,clientes_admin:admin?visibleClients:clients,productos:products,productos_admin:admin?allProducts:products,price_lists:priceLists,usuarios:users,usuarios_admin:admin?allUsers.map(d9gPublicUser_):users,pedidos:orders,pedidos_revision:ordersRevision.revision,ventas:sales,ventas_revision:salesRevision.revision,ofertas:offers,publicidad:publicidad},gestion:{operaciones:operations,items:items,recibos:receipts,pagos:payments,cheques:checks,movimientos:movements,comisiones_reglas:admin?d9gReadObjects_(gestion,"comisiones_reglas",false):[],comisiones_cierres:admin&&scope==="REAL"?d9gTestVisibleClosures_(gestion,testIds,refs):[],comisiones_detalle:admin?d9gTestFilter_(d9gReadObjects_(gestion,"comisiones_detalle",false),scope,testIds,refs):[],productos_log:admin?d9gProductLogs_(gestion):[],config:d9gReadKeyValue_(gestion,"config")}};
 }
 
 function d9gOrderBelongsToUser_(order,user){
@@ -1163,8 +1158,6 @@ function d9gSourceBulkPrices_(user,data) {
 
 function d9gSourceImportProducts_(user,data) {
   d9gRequireSourceWrites_(user);
-  if(!data.operacion_id)data.operacion_id="CAT-"+Utilities.getUuid();
-  const prior=d9gCatalogExisting_(data.operacion_id,user,"IMPORTACION",d9gCatalogHash_({productos:data.productos,listas:data.listas,archivo:d9gText_(data.archivo)}));if(prior)return prior;
   const incoming=Array.isArray(data.productos)?data.productos:[],requestedLists=Array.isArray(data.listas)?data.listas.map(d9gText_):[];
   if(!incoming.length)throw new Error("No llegaron productos para importar.");
   if(incoming.length>5000)throw new Error("La importación supera el máximo de 5000 productos.");
@@ -1176,10 +1169,10 @@ function d9gSourceImportProducts_(user,data) {
   const lists=requestedLists.filter((list,index,array)=>array.indexOf(list)===index);
   if(lists.indexOf("lista_1")<0)throw new Error("La importación debe incluir Lista 1.");
   lists.forEach(list=>{if(!/^lista_[123]$/.test(list)||availableLists.indexOf(list)<0)throw new Error("Lista de precios inválida o inexistente: "+list)});
-  const lastRow=sh.getLastRow(),values=lastRow>1?sh.getRange(2,1,lastRow-1,sh.getLastColumn()).getValues():[],idCol=headers.indexOf("id"),index=Object.create(null),duplicateSheet=[];
+  const lastRow=sh.getLastRow(),values=lastRow>1?sh.getRange(2,1,lastRow-1,sh.getLastColumn()).getValues():[],idCol=headers.indexOf("id"),index={},duplicateSheet=[];
   values.forEach((row,rowIndex)=>{const id=d9gText_(row[idCol]);if(!id)return;if(index[id]!==undefined)duplicateSheet.push(id);else index[id]=rowIndex});
   if(duplicateSheet.length)throw new Error("La hoja productos contiene códigos duplicados: "+duplicateSheet.slice(0,10).join(", ")+".");
-  const normalized=[],seen=Object.create(null);
+  const normalized=[],seen={};
   incoming.forEach((raw,position)=>{
     const id=d9gText_(raw.id),name=d9gText_(raw.nombre),category=d9gText_(raw.categoria);
     if(!id||!name||!category)throw new Error("Fila "+(position+2)+": Código, Descripción y Rubro/Categoría son obligatorios.");
@@ -1190,8 +1183,7 @@ function d9gSourceImportProducts_(user,data) {
     lists.forEach(list=>{product[list]=d9gImportPriceValue_(raw[list],id,list)});
     product.lista_1=d9gNumber_(product.lista_1)>0?product.lista_1:0;product.activo=d9gNumber_(product.lista_1)>0?"si":"no";normalized.push(product);
   });
-  const original=d9gCatalogCapture_(),originalById=Object.create(null);original.rows.forEach(row=>{originalById[d9gText_(row[idCol])]=row});
-  const incomingIds=Object.create(null);normalized.forEach(product=>{incomingIds[product.id]=true});
+  const incomingIds={};normalized.forEach(product=>{incomingIds[product.id]=true});
   let created=0,updated=0,hiddenAbsent=0;
   normalized.forEach(product=>{
     let rowIndex=index[product.id];
@@ -1205,14 +1197,14 @@ function d9gSourceImportProducts_(user,data) {
     if(d9gIsActive_(row[activeCol])||d9gNumber_(row[list1Col])!==0)hiddenAbsent++;
     row[activeCol]="no";row[list1Col]=0;
   });
-  const changed=normalized.filter(product=>index[product.id]!==undefined&&!!originalById[product.id]&&["nombre","categoria","activo"].concat(lists).concat(Object.prototype.hasOwnProperty.call(product,"marca")&&headers.indexOf("marca")>=0?["marca"]:[]).some(key=>d9gCatalogValue_(key,originalById[product.id][headers.indexOf(key)])!==d9gCatalogValue_(key,product[key]))).length;
-  const active=normalized.filter(product=>d9gIsActive_(product.activo)).length;
-  const result={recibidos:normalized.length,creados:created,existentes:updated,actualizados:changed,con_cambios:changed,sin_cambios:updated-changed,activos:active,ocultos_por_precio:normalized.length-active,ocultos_ausentes:hiddenAbsent,listas:lists,solicitud_sha256:d9gCatalogHash_({productos:data.productos,listas:data.listas,archivo:d9gText_(data.archivo)})};
-  const target=Object.assign({},original,{rows:values.map((row,i)=>row.map((v,j)=>{const h=headers[j],managed=["id","nombre","categoria","activo"].concat(lists).includes(h)||(h==="marca"&&normalized.some(p=>Object.prototype.hasOwnProperty.call(p,"marca")));return managed?v:(original.rows[i]?.[j]??v)}))});
-  if(d9gCatalogHash_(target)===d9gCatalogHash_(original)){d9gCatalogSave_(user,"DESTINO_IMPORTACION",target,data,"APLICADA","",result);d9gCatalogPrune_();return Object.assign({ok:true,sin_modificaciones:true},result);}
-  target.columnas=["id","nombre","categoria","activo"].concat(lists).concat(headers.includes("marca")&&normalized.some(p=>Object.prototype.hasOwnProperty.call(p,"marca"))?["marca"]:[]);
-  return d9gCatalogExecute_(user,data,"IMPORTACION",original,target,result);
-
+  if(values.length>sh.getMaxRows()-1)sh.insertRowsAfter(sh.getMaxRows(),values.length-(sh.getMaxRows()-1));
+  const managed=["id","nombre","categoria","activo","lista_1"].concat(lists).filter((key,index,array)=>array.indexOf(key)===index);
+  if(headers.indexOf("marca")>=0&&normalized.some(product=>Object.prototype.hasOwnProperty.call(product,"marca")))managed.push("marca");
+  managed.forEach(key=>{const col=headers.indexOf(key);sh.getRange(2,col+1,values.length,1).setValues(values.map(row=>[row[col]]))});
+  const active=normalized.filter(product=>d9gIsActive_(product.activo)).length,hiddenPrice=normalized.length-active;
+  const result={recibidos:normalized.length,creados:created,actualizados:updated,activos:active,ocultos_por_precio:hiddenPrice,ocultos_ausentes:hiddenAbsent,listas:lists},listNames=lists.map(list=>"Lista "+Number(list.split("_")[1])).join(", "),detail=normalized.length+" productos · "+updated+" actualizados · "+created+" nuevos · "+hiddenAbsent+" ausentes inactivos"+(hiddenPrice?" · "+hiddenPrice+" ocultos por precio":"")+(listNames?" · "+listNames:"");
+  const log=d9gProductLog_(d9gGestion_(),user,"IMPORTACION_LISTA","","",detail,result);
+  return Object.assign({ok:true,log:log},result);
 }
 
 function d9gImportPriceValue_(value,id,list){
@@ -1235,7 +1227,7 @@ function d9gProductLog_(ss,user,type,productId,product,detail,extra){
   return {auditoria_id:id,fecha:timestamp,usuario_id:d9gText_(user.id),usuario:d9gText_(user.nombre),tipo:type,producto_id:d9gText_(productId),producto:d9gText_(product),detalle:d9gText_(detail)};
 }
 function d9gProductLogs_(ss){
-  const allowed={CATALOGO_PREPARADO:true,CATALOGO_APLICADO:true,RESTAURACION_LISTA:true,IMPORTACION_PREPARADA:true,RESTAURACION_PREPARADA:true,IMPORTACION_LISTA:true,ACTUALIZACION_MASIVA:true,MODIFICACION_INDIVIDUAL:true};
+  const allowed={IMPORTACION_LISTA:true,ACTUALIZACION_MASIVA:true,MODIFICACION_INDIVIDUAL:true};
   return d9gReadObjects_(ss,"auditoria",false).filter(row=>allowed[d9gText_(row.accion).toUpperCase()]&&d9gText_(row.entidad).toUpperCase()==="PRODUCTOS").map(row=>{
     let detail={};try{detail=JSON.parse(d9gText_(row.detalle)||"{}")}catch(_){}
     const rawDate=row.timestamp,textDate=d9gText_(rawDate),parsedDate=rawDate instanceof Date?rawDate:d9gParseSourceDate_(rawDate),timestamp=/^\d{4}-\d{2}-\d{2}/.test(textDate)?textDate:(parsedDate?Utilities.formatDate(parsedDate,D9G.TZ,"yyyy-MM-dd HH:mm:ss"):textDate);
@@ -1418,31 +1410,4 @@ function d9gFinancialData_(user,request){
   data.operaciones=d9gTestFilter_(data.operaciones,scope,ids,refs);const opIds=new Set(data.operaciones.map(o=>d9gText_(o.operacion_id)));data.items=data.items.filter(i=>opIds.has(d9gText_(i.operacion_id)));
   ["recibos","pagos","cheques","movimientos"].forEach(name=>data[name]=d9gTestFilter_(data[name],scope,ids,refs));
   d9gSetOperationBalances_(data.operaciones,data.movimientos);return {ok:true,gestion:data,revision:d9gFinancialRevision_(ss)};
-}
-
-// Catálogo: snapshots comprimidos y journal recuperable, separados de datos económicos.
-const D9G_CATALOG_META=["id","fecha","usuario_id","usuario","motivo","archivo","productos","listas","version","sha256","partes","estado","operacion_id","snapshot_previo","resultado"];
-const D9G_CATALOG_PARTS=["id","parte","contenido"];
-function d9gCatalogSheets_(){const ss=d9gGestion_();return {meta:d9gEnsureSheet_(ss,"listas_snapshots",D9G_CATALOG_META),parts:d9gEnsureSheet_(ss,"listas_snapshot_partes",D9G_CATALOG_PARTS)};}
-function d9gCatalogRows_(){d9gCatalogSheets_();return d9gReadObjects_(d9gGestion_(),"listas_snapshots",false);}
-function d9gCatalogHash_(value){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,JSON.stringify(value),Utilities.Charset.UTF_8).map(b=>(b&255).toString(16).padStart(2,"0")).join("");}
-function d9gCatalogCapture_(){const sh=d9gSource_().getSheetByName("productos"),headers=d9gHeaders_(sh),n=Math.max(0,sh.getLastRow()-1),rows=n?sh.getRange(2,1,n,headers.length).getValues():[],formulas=n?sh.getRange(2,1,n,headers.length).getFormulas():[];rows.forEach((r,i)=>r.forEach((v,j)=>{if(formulas[i][j])r[j]={formula:formulas[i][j]};else if(v instanceof Date)r[j]={fecha:v.toISOString()}}));return {headers,rows};}
-function d9gCatalogValue_(key,v){if(/^lista_/.test(key))return v===""||v==null?"":String(d9gRound_(d9gNumber_(v)));if(key==="activo")return d9gIsActive_(v)?"si":"no";return d9gText_(v);}
-function d9gCatalogRead_(id,allowIncomplete){const m=d9gCatalogRows_().find(x=>x.id===id&&(allowIncomplete||x.estado!=="INCOMPLETO"));if(!m)throw new Error("Snapshot no disponible o incompleto.");const parts=d9gReadObjects_(d9gGestion_(),"listas_snapshot_partes",false).filter(x=>x.id===id).sort((a,b)=>a.parte-b.parte);if(parts.length!==Number(m.partes)||parts.some((x,i)=>Number(x.parte)!==i))throw new Error("Snapshot incompleto.");const payload=JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(parts.map(x=>x.contenido).join("")),"application/x-gzip")).getDataAsString());if(d9gCatalogHash_(payload)!==m.sha256)throw new Error("Falló la verificación del snapshot.");return payload;}
-function d9gCatalogSet_(id,key,value){const sh=d9gCatalogSheets_().meta,rows=d9gCatalogRows_(),i=rows.findIndex(x=>x.id===id);if(i<0)throw new Error("Registro no encontrado.");sh.getRange(i+2,D9G_CATALOG_META.indexOf(key)+1).setValue(value);SpreadsheetApp.flush();}
-function d9gCatalogSave_(user,reason,payload,data,state,previous,result){const sheets=d9gCatalogSheets_(),id="LS-"+Utilities.getUuid(),encoded=Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(payload),"application/json")).getBytes()),parts=[];for(let i=0;i<encoded.length;i+=25000)parts.push([id,parts.length,encoded.slice(i,i+25000)]);sheets.meta.appendRow([id,d9gNow_(),user.id,user.nombre,reason,d9gText_(data.archivo).slice(0,180),payload.rows.filter(r=>d9gText_(r[payload.headers.indexOf("id")])).length,payload.headers.filter(h=>/^lista_[123]$/.test(h)).join(","),"0.20.4",d9gCatalogHash_(payload),parts.length,"INCOMPLETO",d9gText_(data.operacion_id),previous||"",JSON.stringify(result||{})]);sheets.parts.getRange(sheets.parts.getLastRow()+1,1,parts.length,3).setValues(parts);SpreadsheetApp.flush();d9gCatalogRead_(id,true);d9gCatalogSet_(id,"estado",state);return id;}
-function d9gCatalogApply_(target){const sh=d9gSource_().getSheetByName("productos");if(JSON.stringify(d9gHeaders_(sh))!==JSON.stringify(target.headers))throw new Error("Cambió la estructura del maestro. No se puede restaurar automáticamente.");const count=Math.max(target.rows.length,sh.getLastRow()-1);if(count>sh.getMaxRows()-1)sh.insertRowsAfter(sh.getMaxRows(),count-(sh.getMaxRows()-1));const rows=Array.from({length:count},(_,i)=>target.headers.map((h,j)=>{const v=target.rows[i]?.[j]??"";if(v&&typeof v==="object")return v.formula||new Date(v.fecha);return typeof v==="string"&&v.startsWith("=")?"'"+v:v}));if(count){if(target.columnas)target.columnas.forEach(h=>{const col=target.headers.indexOf(h);if(col<0)throw new Error("Columna de importación inválida.");sh.getRange(2,col+1,count,1).setValues(rows.map(r=>[r[col]]));});else sh.getRange(2,1,count,target.headers.length).setValues(rows);}SpreadsheetApp.flush();const actual=d9gCatalogCapture_();while(actual.rows.length&&actual.rows[actual.rows.length-1].every(v=>v===""))actual.rows.pop();const expected=JSON.parse(JSON.stringify(target));delete expected.columnas;while(expected.rows.length&&expected.rows[expected.rows.length-1].every(v=>v===""))expected.rows.pop();const projection=x=>target.columnas?{headers:target.columnas,rows:x.rows.map(r=>target.columnas.map(h=>r[target.headers.indexOf(h)]))}:x;if(d9gCatalogHash_(projection(actual))!==d9gCatalogHash_(projection(expected)))throw new Error("La escritura del maestro no pudo verificarse; se conserva la recuperación pendiente.");}
-function d9gCatalogRecover_(){if(!d9gGestion_().getSheetByName("listas_snapshots"))return;const pending=d9gCatalogRows_().filter(x=>["PREPARADA","APLICANDO"].includes(x.estado));pending.forEach(m=>{const target=d9gCatalogRead_(m.id);d9gCatalogRead_(m.snapshot_previo);if(m.estado==="PREPARADA"){d9gProductLog_(d9gGestion_(),{id:m.usuario_id,nombre:m.usuario},"CATALOGO_PREPARADO","","","Snapshot y destino verificados",{operacion_id:m.operacion_id,snapshot_id:m.snapshot_previo});d9gCatalogSet_(m.id,"estado","APLICANDO");}d9gCatalogApply_(target);d9gProductLog_(d9gGestion_(),{id:m.usuario_id,nombre:m.usuario},"CATALOGO_APLICADO","","","Escritura verificada / recuperación",{operacion_id:m.operacion_id,snapshot_id:m.snapshot_previo});d9gCatalogSet_(m.id,"estado","APLICADA");});if(pending.length)d9gCatalogPrune_();}
-function d9gCatalogExisting_(id,user,reason,requestHash){if(!/^CAT-[A-Za-z0-9-]{8,100}$/.test(d9gText_(id)))throw new Error("Falta el ID estable de la operación. Actualizá Gestión.");const m=d9gCatalogRows_().find(x=>x.operacion_id===id&&x.motivo==="DESTINO_"+reason);if(!m)return null;if(m.usuario_id!==user.id)throw new Error("La operación pertenece a otro usuario.");if(m.estado!=="APLICADA")throw new Error("La operación necesita recuperación; actualizá antes de reintentar.");const result=JSON.parse(m.resultado||"{}");if(result.solicitud_sha256&&result.solicitud_sha256!==requestHash)throw new Error("El ID de la operación ya corresponde a otros datos. No se aplicaron cambios nuevos.");return Object.assign({ok:true,reintento:true,snapshot_id:m.snapshot_previo},result);}
-function d9gCatalogExecute_(user,data,reason,current,target,result){const previous=d9gCatalogSave_(user,reason==="RESTAURACION"?"PRE-RESTAURACIÓN":"IMPORTACIÓN XLS",current,data,"DISPONIBLE");const journal=d9gCatalogSave_(user,"DESTINO_"+reason,target,data,"PREPARADA",previous,result);d9gProductLog_(d9gGestion_(),user,reason+"_PREPARADA","","","Snapshot verificado antes de aplicar",{operacion_id:data.operacion_id,snapshot_id:previous,destino:journal});d9gCatalogSet_(journal,"estado","APLICANDO");d9gCatalogRecover_();d9gProductLog_(d9gGestion_(),user,reason==="IMPORTACION"?"IMPORTACION_LISTA":"RESTAURACION_LISTA","","","Maestro aplicado y verificado",{operacion_id:data.operacion_id,snapshot_id:previous,...result});d9gCatalogPrune_();return Object.assign({ok:true,snapshot_id:previous},result);}
-function d9gCatalogPrune_(){const all=d9gCatalogRows_(),available=all.filter(x=>x.estado==="DISPONIBLE").reverse(),keep=new Set(available.slice(0,20).map(x=>x.id));all.filter(x=>["APLICANDO","PREPARADA"].includes(x.estado)).forEach(x=>{keep.add(x.id);keep.add(x.snapshot_previo)});all.filter(x=>x.estado==="APLICADA").reverse().slice(0,20).forEach(x=>keep.add(x.id));const sheets=d9gCatalogSheets_();const remove=(sh,objects)=>{for(let i=objects.length-1;i>=0;i--)if(!keep.has(objects[i].id))sh.deleteRow(i+2)};remove(sheets.meta,all);const payloadKeep=new Set(all.filter(x=>keep.has(x.id)&&x.estado!=="APLICADA").map(x=>x.id));const parts=d9gReadObjects_(d9gGestion_(),"listas_snapshot_partes",false);for(let i=parts.length-1;i>=0;i--)if(!payloadKeep.has(parts[i].id))sheets.parts.deleteRow(i+2);}
-
-function d9gCatalogHistory_(user){d9gRequireSourceWrites_(user);return {ok:true,snapshots:d9gCatalogRows_().filter(x=>x.estado==="DISPONIBLE").reverse().map(x=>({id:x.id,fecha:x.fecha,usuario:x.usuario,motivo:x.motivo,archivo:x.archivo,productos:x.productos,listas:x.listas,version:x.version}))};}
-function d9gCatalogPreview_(user,data){d9gRequireSourceWrites_(user);const meta=d9gCatalogRows_().find(x=>x.id===data.snapshot_id&&x.estado==="DISPONIBLE");if(!meta)throw new Error("Snapshot no disponible.");const target=d9gCatalogRead_(meta.id),current=d9gCatalogCapture_();if(JSON.stringify(current.headers)!==JSON.stringify(target.headers))throw new Error("El maestro cambió de estructura; restauración bloqueada.");return {ok:true,snapshot:meta,actual:current.rows.length,destino:target.rows.length,revision:d9gCatalogHash_(current)};}
-function d9gCatalogRestore_(user,data){d9gRequireSourceWrites_(user);const prior=d9gCatalogExisting_(data.operacion_id,user,"RESTAURACION",d9gCatalogHash_({snapshot_id:data.snapshot_id,revision:data.revision}));if(prior)return prior;const preview=d9gCatalogPreview_(user,data);if(data.confirmacion!=="RESTAURAR"||data.revision!==preview.revision)throw new Error("El maestro cambió o falta confirmación. Volvé a revisar la preview.");return d9gCatalogExecute_(user,data,"RESTAURACION",d9gCatalogCapture_(),d9gCatalogRead_(data.snapshot_id),{restaurado:data.snapshot_id,productos:preview.destino,solicitud_sha256:d9gCatalogHash_({snapshot_id:data.snapshot_id,revision:data.revision})});}
-function d9gCatalogResult_(user,data){
-  d9gRequireSourceWrites_(user);
-  const m=d9gCatalogRows_().find(x=>x.operacion_id===data.operacion_id&&/^DESTINO_/.test(x.motivo));
-  if(m&&d9gText_(m.usuario_id)!==d9gText_(user.id))throw new Error("La operación pertenece a otro usuario.");
-  return {ok:true,aplicada:!!m&&m.estado==="APLICADA",estado:m?m.estado:"NO_ENCONTRADA",snapshot_id:m?.snapshot_previo||"",catalogo_revision:d9gCatalogHash_(d9gReadObjects_(d9gSource_(),"productos",false)),resultado:m?JSON.parse(m.resultado||"{}"):null};
 }
