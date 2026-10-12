@@ -720,6 +720,11 @@ function parseProductImportPrice(value){
   const parsed=Number(normalized);return Number.isFinite(parsed)&&parsed>=0?{ok:true,value:parsed}:{ok:false};
 }
 function productImportFinalPrice(value){return Math.round((value*(1+PRODUCT_IMPORT_IVA_RATE_D9)+Number.EPSILON)*100)/100}
+function productImportHasChanges(product,existing,detectedLists,hasBrand){
+  const fields=["nombre","categoria","activo",...detectedLists];
+  if(hasBrand&&Object.prototype.hasOwnProperty.call(existing,"marca"))fields.push("marca");
+  return fields.some(field=>String(existing[field]??"")!==String(product[field]??""));
+}
 function analyzeProductImportRows(rows,fileName){
   if(!Array.isArray(rows)||!rows.length)throw new Error("El archivo no contiene filas.");
   const headers=rows[0].map(value=>String(value||"").trim());
@@ -737,16 +742,16 @@ function analyzeProductImportRows(rows,fileName){
     if(valid){product.lista_1=numeric(product.lista_1);product.activo=product.lista_1>0?"si":"no";products.push(product)}
   });
   if(!products.length&&!issues.length)issues.push("El archivo no contiene productos para importar.");
-  const current=adminProducts(),existingIds=new Set(current.map(product=>String(product.id))),incomingIds=new Set(products.map(product=>product.id));
-  const created=products.filter(product=>!existingIds.has(product.id)).length,updated=products.length-created,active=products.filter(product=>activeValue(product.activo)).length,hiddenZero=products.length-active,hiddenAbsent=current.filter(product=>product.id&&!incomingIds.has(String(product.id))&&activeValue(product.activo)).length;
-  return {fileName,headers,columns,detectedLists,products,issues,summary:{created,updated,active,hiddenZero,hiddenAbsent,total:products.length}};
+  const current=adminProducts(),existingById=new Map(current.map(product=>[String(product.id),product])),incomingIds=new Set(products.map(product=>product.id));
+  const created=products.filter(product=>!existingById.has(product.id)).length,updated=products.length-created,changed=products.filter(product=>existingById.has(product.id)&&productImportHasChanges(product,existingById.get(product.id),detectedLists,columns.marca>=0)).length,unchanged=updated-changed,active=products.filter(product=>activeValue(product.activo)).length,hiddenZero=products.length-active,hiddenAbsent=current.filter(product=>product.id&&!incomingIds.has(String(product.id))&&activeValue(product.activo)).length;
+  return {fileName,headers,columns,detectedLists,products,issues,summary:{created,updated,changed,unchanged,active,hiddenZero,hiddenAbsent,total:products.length}};
 }
 function renderProductImport(){
   const model=state.productImport;if(!model)return;
   $("#productImportIntro").classList.add("hidden");$("#productImportReview").classList.remove("hidden");
   $("#productImportSource").innerHTML=`<strong>${esc(model.fileName)}</strong> · ${model.summary.total} productos encontrados`;
   $("#productImportLists").innerHTML=["lista_1","lista_2","lista_3"].map(list=>{const found=model.detectedLists.includes(list);return `<div class="${found?"found":"missing"}"><span>${found?"✓":"—"}</span><strong>${esc(priceListLabel(list))}</strong><small>${found?"detectada":"no encontrada"}</small></div>`}).join("");
-  const s=model.summary;$("#productImportSummary").innerHTML=`<div><small>Filas válidas</small><strong>${s.total}</strong></div><div class="safe"><small>Nuevos</small><strong>${s.created}</strong></div><div class="current"><small>Actualizados</small><strong>${s.updated}</strong></div><div><small>Activos</small><strong>${s.active}</strong></div><div class="review"><small>Ocultos por precio</small><strong>${s.hiddenZero}</strong></div><div class="review"><small>Ausentes a ocultar</small><strong>${s.hiddenAbsent}</strong></div>`;
+  const s=model.summary;$("#productImportSummary").innerHTML=`<div><small>Filas válidas</small><strong>${s.total}</strong></div><div class="safe"><small>Nuevos</small><strong>${s.created}</strong></div><div class="current"><small>Existentes con cambios</small><strong>${s.changed}</strong></div><div><small>Existentes sin cambios</small><strong>${s.unchanged}</strong></div><div><small>Activos</small><strong>${s.active}</strong></div><div class="review"><small>Ocultos por precio</small><strong>${s.hiddenZero}</strong></div><div class="review"><small>Ausentes a ocultar</small><strong>${s.hiddenAbsent}</strong></div>`;
   const issues=$("#productImportIssues");if(model.issues.length){issues.className="form-message error";issues.innerHTML=`<strong>No se puede importar todavía.</strong><br>${model.issues.slice(0,20).map(esc).join("<br>")}${model.issues.length>20?`<br>… y ${model.issues.length-20} errores más.`:""}`}else issues.className="form-message hidden";
   $("#productImportPreview").className="bulk-preview";$("#productImportPreview").innerHTML=model.products.length?`<div class="product-import-table"><div class="product-import-row head" style="--import-lists:${model.detectedLists.length}"><span>Producto</span>${model.detectedLists.map(list=>`<span>${esc(priceListLabel(list))}<small>Final c/IVA</small></span>`).join("")}<span>Estado</span></div>${model.products.slice(0,80).map(product=>`<div class="product-import-row" style="--import-lists:${model.detectedLists.length}"><span><b>${esc(product.id)}</b><small>${esc(product.nombre)} · ${esc(product.categoria)}</small></span>${model.detectedLists.map(list=>`<span>${numeric(product[list])>0?money(product[list]):"—"}</span>`).join("")}<span><b class="${activeValue(product.activo)?"positive":"negative"}">${activeValue(product.activo)?"Activo":"Oculto"}</b></span></div>`).join("")}</div>${model.products.length>80?`<p class="helper">Se muestran 80 de ${model.products.length} productos.</p>`:""}`:'<div class="empty">Sin filas válidas.</div>';
   $("#productImportConfirm").checked=false;$("#btnApplyProductImport").disabled=true;
