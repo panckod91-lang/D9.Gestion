@@ -23,8 +23,10 @@ async function refreshCatalogAfterWrite(pending,message){
     if(!status.catalogo_revision||status.catalogo_revision!==data.source?.productos_revision)throw new Error("No se pudo confirmar la misma versión del maestro en central y en la vista. Reintentá la actualización.");
     if(!status.aplicada){
       if(["NO_ENCONTRADA","INCOMPLETO"].includes(status.estado)){
-        applyBootstrap(data);saveCurrentCache();setSync("Vista actualizada · operación sin aplicar");
-        const el=catalogDialog();el.innerHTML=`<h2>Resultado no disponible</h2><p>La vista se actualizó sin importar. Central no conserva un resultado verificable para este ID. Revisá los productos antes de iniciar otra importación.</p><button class="btn primary" id="catalogRelease">Cerrar verificación después de revisar</button>`;
+        applyBootstrap(data);saveCurrentCache();
+        const notApplied=status.estado==="INCOMPLETO";
+        setSync(notApplied?"Vista actualizada · operación no aplicada":"Vista actualizada · resultado incierto",!notApplied);
+        const el=catalogDialog();el.innerHTML=`<h2>${notApplied?"Operación no aplicada":"Resultado no disponible · estado incierto"}</h2><p>Se leyó el maestro actual de central. Este reintento no envió el XLS.</p><p>${notApplied?"La intención central quedó INCOMPLETA antes de habilitar la escritura de productos. Esa operación no se aplicó.":"No hay un resultado central disponible para confirmar qué ocurrió en el intento original. No se puede afirmar desde esta consulta que se haya aplicado o que no se haya aplicado."}</p><p>Revisá el producto que cambiaba y el snapshot de esa intención antes de otra importación.</p><button class="btn primary" id="catalogRelease">Cerrar verificación después de revisar</button>`;
         document.getElementById("catalogRelease").onclick=()=>{try{assertCurrent();localStorage.removeItem(key);renderMasters();el.close();toast("Verificación cerrada. Podés revisar e importar de nuevo si corresponde.")}catch(error){toast(error.message,"error")}};
         if(!el.open)el.showModal();return false;
       }

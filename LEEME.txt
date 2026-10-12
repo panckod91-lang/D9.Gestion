@@ -1,11 +1,17 @@
-D9 GESTIÓN v0.20.3 — PAQUETE COMPLETO
-Base: D9_Gestion_v0.20.2_Descarga_PDF_COMPLETO.zip
+D9 GESTIÓN v0.20.4 — PAQUETE COMPLETO
+Base: D9_Gestion_v0.20.3_COMPLETO.zip
 
 ACTUALIZACIÓN
 1. Reemplazar el código del Apps Script ACTUAL de Gestión por apps-script/Code.gs.
 2. En Administrar implementaciones, editar la implementación web existente y elegir una nueva versión. Conservar su URL. No crear otro proyecto ni ejecutar setupD9Gestion.
 3. Reemplazar el frontend con los archivos de este paquete, conservando sus carpetas. apps-script/Code.gs es el backend de referencia; no es un archivo ejecutado por GitHub Pages.
-4. Cerrar y volver a abrir Gestión; comprobar v0.20.3. No borrar datos del navegador.
+4. Cerrar y volver a abrir Gestión; comprobar v0.20.4. No borrar datos del navegador.
+
+CORRECCIÓN PUNTUAL
+El Blob reconstruido desde las partes del snapshot declara application/x-gzip antes de Utilities.ungzip(). La verificación previa sigue bloqueando la escritura de productos si falla.
+Si un reintento no encuentra resultado central verificable, informa estado incierto y aclara que no volvió a enviar el XLS.
+La utilidad temporal de diagnóstico no integra este paquete. Preparar esta entrega no modifica ni borra el snapshot INCOMPLETO de la prueba física.
+La limpieza heredada de v0.20.3 excluye INCOMPLETO: una importación exitosa posterior eliminaría esa evidencia; no se modificó esa regla.
 
 IMPORTACIÓN
 La vista previa separa nuevos, existentes con cambios y existentes sin cambios. El resultado definitivo sólo aparece después de leer central y confirmar la revisión del maestro recibido por la vista.
@@ -22,6 +28,6 @@ Compartir PDF usa el selector del dispositivo cuando admite archivos; en los dem
 Si el selector se cierra o falla, aparece una alternativa explícita para descargar el mismo archivo. Esta función no copia un PDF al portapapeles.
 Las observaciones y descripciones extensas continúan en otras medias A4. Si hay un carácter que la fuente del PDF no admite, se informa y se indica usar Imprimir / Guardar PDF para conservarlo, sin sustituirlo silenciosamente.
 
-PENDIENTE EN DISPOSITIVOS REALES
-Probar importar y repetir el mismo archivo (la segunda vez debe informar sin cambios), consultar snapshots, y probar impresión, descarga y compartir en PC y Android.
+PRUEBA FÍSICA ACOTADA
+Con el archivo previsto: verificar snapshot DISPONIBLE, importación confirmada, cambio aplicado, Listas 2/3 preservadas y vista actualizada sin error Blob. Ante estado incierto, usar Reintentar actualización antes de considerar otra importación.
 No se publicaron cambios ni se modificaron Sheets reales durante la preparación de este paquete.
