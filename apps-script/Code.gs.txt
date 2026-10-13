@@ -52,6 +52,9 @@ function doPost(e) {
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
+      if (action === "snapshot_productos_crear") return d9gJson_(d9gSnapshotProductosCrear_(session));
+      if (action === "snapshot_productos_listar") return d9gJson_(d9gSnapshotProductosListar_(session));
+      if (action === "snapshot_productos_verificar") return d9gJson_(d9gSnapshotProductosVerificar_(session,data));
       if (action === "cancelar_intencion_comprobante") return d9gJson_(d9gCancelDocumentIntent_(session,data));
       d9gReconcileDocumentIntents_(d9gGestion_());
       if (action === "bootstrap") return d9gJson_(d9gBootstrap_(session,data));
@@ -1415,4 +1418,94 @@ function d9gFinancialData_(user,request){
   data.operaciones=d9gTestFilter_(data.operaciones,scope,ids,refs);const opIds=new Set(data.operaciones.map(o=>d9gText_(o.operacion_id)));data.items=data.items.filter(i=>opIds.has(d9gText_(i.operacion_id)));
   ["recibos","pagos","cheques","movimientos"].forEach(name=>data[name]=d9gTestFilter_(data[name],scope,ids,refs));
   d9gSetOperationBalances_(data.operaciones,data.movimientos);return {ok:true,gestion:data,revision:d9gFinancialRevision_(ss)};
+}
+
+// Copias MANUALES de la tabla productos. Ninguna función de este bloque escribe en la Sheet de origen.
+const D9G_SNAPSHOT_PRODUCTOS_HEADERS_=["snapshot_id","fecha","motivo","estado","filas","columnas","partes","sha256","parte","contenido","error"];
+function d9gSnapshotProductosSheet_(create){
+  const ss=d9gGestion_();let sh=ss.getSheetByName("productos_snapshots");
+  if(!sh&&create){sh=ss.insertSheet("productos_snapshots");sh.getRange(1,1,1,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).setValues([D9G_SNAPSHOT_PRODUCTOS_HEADERS_]);}
+  if(!sh)return null;
+  if(!sh.getLastRow()&&create)sh.getRange(1,1,1,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).setValues([D9G_SNAPSHOT_PRODUCTOS_HEADERS_]);
+  const headers=sh.getLastRow()?sh.getRange(1,1,1,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).getValues()[0]:[];
+  if(headers.length!==D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length||headers.some((v,i)=>v!==D9G_SNAPSHOT_PRODUCTOS_HEADERS_[i]))throw new Error("La hoja productos_snapshots tiene una estructura distinta. No se modificó su contenido.");
+  return sh;
+}
+function d9gSnapshotProductosCell_(v){
+  if(v instanceof Date){if(isNaN(v.getTime()))throw new Error("El maestro contiene una fecha inválida.");return ["fecha",v.toISOString()];}
+  if(v===null||v===undefined)return ["vacio"];
+  if(typeof v==="number"){if(!isFinite(v))throw new Error("El maestro contiene un número inválido.");return ["numero",v];}
+  if(typeof v==="boolean")return ["booleano",v];
+  if(typeof v==="string")return ["texto",v];
+  throw new Error("El maestro contiene un tipo de celda no admitido.");
+}
+function d9gSnapshotProductosCanonical_(sh){
+  const filas=sh.getLastRow(),columnas=sh.getLastColumn();
+  if(filas<1||columnas<1)throw new Error("La hoja productos está vacía.");
+  const range=sh.getRange(1,1,filas,columnas),values=range.getValues(),formulas=range.getFormulas();
+  const document={version:1,filas:filas,columnas:columnas,valores:values.map(row=>row.map(d9gSnapshotProductosCell_)),formulas:formulas.map(row=>row.map(f=>String(f||"")))};
+  return JSON.stringify(document);
+}
+function d9gSnapshotProductosHash_(s){
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,s,Utilities.Charset.UTF_8).map(b=>(b&255).toString(16).padStart(2,"0")).join("");
+}
+function d9gSnapshotProductosRows_(sh){
+  return sh.getLastRow()<2?[]:sh.getRange(2,1,sh.getLastRow()-1,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).getValues().map((row,i)=>({row:row,index:i+2}));
+}
+function d9gSnapshotProductosMeta_(entry){
+  const r=entry.row;return {id:String(r[0]),fecha:String(r[1]),motivo:String(r[2]),estado:String(r[3]),filas:Number(r[4]),columnas:Number(r[5]),partes:Number(r[6]),sha256:String(r[7]),error:String(r[10]||"")};
+}
+function d9gSnapshotProductosRead_(sh,entry){
+  const meta=d9gSnapshotProductosMeta_(entry),parts=d9gSnapshotProductosRows_(sh).filter(e=>String(e.row[0])===meta.id&&Number(e.row[8])>0);
+  if(!Number.isInteger(meta.partes)||meta.partes<1||parts.length!==meta.partes)throw new Error("Faltan fragmentos del snapshot.");
+  parts.sort((a,b)=>Number(a.row[8])-Number(b.row[8]));
+  parts.forEach((p,i)=>{if(Number(p.row[8])!==i+1||typeof p.row[9]!=="string"||!p.row[9])throw new Error("Los fragmentos del snapshot están incompletos.");});
+  const serial=parts.map(p=>{let content;try{content=JSON.parse(p.row[9])}catch(_){throw new Error("Un fragmento del snapshot no es válido.");}if(typeof content!=="string")throw new Error("Un fragmento del snapshot no es texto.");return content;}).join("");
+  let data;try{data=JSON.parse(serial)}catch(_){throw new Error("El contenido del snapshot no es JSON válido.");}
+  if(data.version!==1||data.filas!==meta.filas||data.columnas!==meta.columnas||!Array.isArray(data.valores)||data.valores.length!==meta.filas||!Array.isArray(data.formulas)||data.formulas.length!==meta.filas||data.valores.some(row=>!Array.isArray(row)||row.length!==meta.columnas||row.some(cell=>!Array.isArray(cell)||cell.length<1))||data.formulas.some(row=>!Array.isArray(row)||row.length!==meta.columnas||row.some(f=>typeof f!=="string")))throw new Error("Las dimensiones o los datos del snapshot no coinciden.");
+  if(JSON.stringify(data)!==serial||d9gSnapshotProductosHash_(serial)!==meta.sha256)throw new Error("La integridad SHA-256 del snapshot no coincide.");
+  return meta;
+}
+function d9gSnapshotProductosListar_(user){
+  d9gRequireAdmin_(user);const sh=d9gSnapshotProductosSheet_(false);
+  return {ok:true,snapshots:sh?d9gSnapshotProductosRows_(sh).filter(e=>Number(e.row[8])===0).map(d9gSnapshotProductosMeta_).reverse():[]};
+}
+function d9gSnapshotProductosVerificar_(user,request){
+  d9gRequireAdmin_(user);const sh=d9gSnapshotProductosSheet_(false),id=d9gText_(request.snapshot_id);
+  if(!sh||!id)throw new Error("No existe el snapshot solicitado.");
+  const entry=d9gSnapshotProductosRows_(sh).find(e=>Number(e.row[8])===0&&String(e.row[0])===id);
+  if(!entry)throw new Error("No existe el snapshot solicitado.");
+  try{
+    const meta=d9gSnapshotProductosRead_(sh,entry);
+    sh.getRange(entry.index,4).setValue("DISPONIBLE");sh.getRange(entry.index,11).setValue("");
+    return {ok:true,snapshot:Object.assign(meta,{estado:"DISPONIBLE",error:""})};
+  }catch(error){
+    const message=String(error&&error.message||error);sh.getRange(entry.index,4).setValue("INCOMPLETO");sh.getRange(entry.index,11).setValue(message);
+    return {ok:true,snapshot:Object.assign(d9gSnapshotProductosMeta_(entry),{estado:"INCOMPLETO",error:message})};
+  }
+}
+function d9gSnapshotProductosRetener_(sh){
+  const rows=d9gSnapshotProductosRows_(sh),available=rows.filter(e=>Number(e.row[8])===0&&e.row[3]==="DISPONIBLE");
+  if(available.length<=20)return;
+  const keep=new Set(available.slice(-20).map(e=>String(e.row[0]))),remove=new Set(available.filter(e=>!keep.has(String(e.row[0]))).map(e=>String(e.row[0])));
+  // Se eliminan sólo grupos DISPONIBLES, desde abajo para mantener índices estables.
+  rows.filter(e=>remove.has(String(e.row[0]))).reverse().forEach(e=>sh.deleteRow(e.index));
+}
+function d9gSnapshotProductosCrear_(user){
+  d9gRequireAdmin_(user);
+  const source=d9gSource_().getSheetByName("productos");if(!source)throw new Error("No existe la hoja productos del maestro central.");
+  const serial=d9gSnapshotProductosCanonical_(source),data=JSON.parse(serial),hash=d9gSnapshotProductosHash_(serial),chunks=serial.match(/[\s\S]{1,7000}/g)||[],sh=d9gSnapshotProductosSheet_(true),id="SP-"+Utilities.getUuid(),fecha=d9gNow_();
+  const metaRow=sh.getLastRow()+1;
+  sh.getRange(metaRow,1,1,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).setValues([[id,fecha,"MANUAL","INCOMPLETO",data.filas,data.columnas,chunks.length,hash,0,"",""]]);
+  try{
+    sh.getRange(metaRow+1,1,chunks.length,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).setValues(chunks.map((part,i)=>[id,"","","","","","","",i+1,JSON.stringify(part),""]));
+    SpreadsheetApp.flush();
+    d9gSnapshotProductosRead_(sh,{row:sh.getRange(metaRow,1,1,D9G_SNAPSHOT_PRODUCTOS_HEADERS_.length).getValues()[0],index:metaRow});
+    sh.getRange(metaRow,4).setValue("DISPONIBLE");SpreadsheetApp.flush();
+  }catch(error){
+    sh.getRange(metaRow,11).setValue(String(error&&error.message||error));
+    throw new Error("Snapshot "+id+" INCOMPLETO: "+String(error&&error.message||error));
+  }
+  let aviso="";try{d9gSnapshotProductosRetener_(sh)}catch(error){aviso="No se pudo completar la retención: "+String(error&&error.message||error);}
+  return {ok:true,snapshot:{id:id,fecha:fecha,motivo:"MANUAL",estado:"DISPONIBLE",filas:data.filas,columnas:data.columnas,partes:chunks.length,sha256:hash,error:""},aviso:aviso};
 }
