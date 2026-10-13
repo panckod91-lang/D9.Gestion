@@ -1184,10 +1184,15 @@ function d9gSourceImportProducts_(user,data) {
     product.lista_1=d9gNumber_(product.lista_1)>0?product.lista_1:0;product.activo=d9gNumber_(product.lista_1)>0?"si":"no";normalized.push(product);
   });
   const incomingIds={};normalized.forEach(product=>{incomingIds[product.id]=true});
-  let created=0,updated=0,hiddenAbsent=0;
+  let created=0,updated=0,changed=0,hiddenAbsent=0;
   normalized.forEach(product=>{
     let rowIndex=index[product.id];
-    if(rowIndex===undefined){values.push(new Array(headers.length).fill(""));rowIndex=values.length-1;index[product.id]=rowIndex;created++;}else updated++;
+    if(rowIndex===undefined){values.push(new Array(headers.length).fill(""));rowIndex=values.length-1;index[product.id]=rowIndex;created++;}else{
+      updated++;
+      const fields=["nombre","categoria","activo"].concat(lists);
+      if(Object.prototype.hasOwnProperty.call(product,"marca")&&headers.indexOf("marca")>=0)fields.push("marca");
+      if(fields.some(key=>String(values[rowIndex][headers.indexOf(key)]??"")!==String(product[key]??"")))changed++;
+    }
     ["id","nombre","categoria","activo"].concat(lists).forEach(key=>{values[rowIndex][headers.indexOf(key)]=product[key]});
     if(Object.prototype.hasOwnProperty.call(product,"marca")&&headers.indexOf("marca")>=0)values[rowIndex][headers.indexOf("marca")]=product.marca;
   });
@@ -1202,7 +1207,7 @@ function d9gSourceImportProducts_(user,data) {
   if(headers.indexOf("marca")>=0&&normalized.some(product=>Object.prototype.hasOwnProperty.call(product,"marca")))managed.push("marca");
   managed.forEach(key=>{const col=headers.indexOf(key);sh.getRange(2,col+1,values.length,1).setValues(values.map(row=>[row[col]]))});
   const active=normalized.filter(product=>d9gIsActive_(product.activo)).length,hiddenPrice=normalized.length-active;
-  const result={recibidos:normalized.length,creados:created,actualizados:updated,activos:active,ocultos_por_precio:hiddenPrice,ocultos_ausentes:hiddenAbsent,listas:lists},listNames=lists.map(list=>"Lista "+Number(list.split("_")[1])).join(", "),detail=normalized.length+" productos · "+updated+" actualizados · "+created+" nuevos · "+hiddenAbsent+" ausentes inactivos"+(hiddenPrice?" · "+hiddenPrice+" ocultos por precio":"")+(listNames?" · "+listNames:"");
+  const result={recibidos:normalized.length,creados:created,actualizados:updated,activos:active,ocultos_por_precio:hiddenPrice,ocultos_ausentes:hiddenAbsent,listas:lists},listNames=lists.map(list=>"Lista "+Number(list.split("_")[1])).join(", "),detail=normalized.length+" productos · "+changed+" con cambios · "+(updated-changed)+" sin cambios · "+created+" nuevos · "+hiddenAbsent+" ausentes inactivos"+(hiddenPrice?" · "+hiddenPrice+" ocultos por precio":"")+(listNames?" · "+listNames:"");
   const log=d9gProductLog_(d9gGestion_(),user,"IMPORTACION_LISTA","","",detail,result);
   return Object.assign({ok:true,log:log},result);
 }
