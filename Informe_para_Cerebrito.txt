@@ -1,0 +1,52 @@
+D9 GESTIÓN v0.20.11 — ESTADOS DE SINCRONIZACIÓN Y RESPUESTA INCIERTA AL GUARDAR CLIENTE
+Base: v0.20.10. Sólo frontend. Apps Script continúa en v0.20.10, idéntico byte a byte.
+
+CAMBIOS
+- Una carga fallida ya no se anuncia genéricamente como «sin conexión».
+- Se distinguen error HTTP, HTML/JSON inválido, error informado por central, transporte y aplicación local de los datos.
+- El estado incluye la acción fallida en su detalle (tooltip en PC y mensaje de error). Si navigator.onLine informa false y el fallo es de transporte, se muestra «Navegador sin red»; no se afirma falta de Internet por cualquier error de API.
+- Con caché disponible, el inicio indica que está consultando central. No se agregó timeout ni un reintento nuevo.
+- El registro temporal existente window.D9_GESTION_TIMINGS conserva acción, duración y error/HTTP cuando termina la llamada. No registra token ni cuerpo de los envíos.
+- El polling ya no silencia sus fallos generales; una revisión exitosa sin novedades limpia su propio error anterior y no borra por eso un error de bootstrap.
+
+CLIENTES
+Si source_save_client falla por transporte, HTTP o respuesta inválida, se consulta el bootstrap existente y su maestro de clientes_admin. No se reenvía el alta.
+- ID único y datos coincidentes: se incorpora la ficha central y se informa «verificado en central», sin atribuir quién lo creó.
+- ID con datos distintos: se ofrece ver la ficha central, sin sobrescribirla.
+- ID ausente: se informa que no figura en esa consulta y se permite al usuario revisar antes de guardar otra vez con el mismo ID. No se afirma que la primera petición jamás pueda aplicarse.
+- Consulta fallida: el botón «Verificar cliente» solamente vuelve a consultar central.
+El estado de verificación pendiente es temporal en la página abierta. No se agregó persistencia de esa verificación ni journals de operaciones. El historial diagnóstico local descrito abajo es independiente y no decide ni reenvía operaciones.
+La verificación usa el bootstrap vigente, con sus comportamientos de backend ya existentes; no añade una API nueva.
+
+ARCHIVOS
+app.js, config.js, index.html, sw.js (sólo nombre de caché), tests/sync-client-response.js, tests/error-history.js y este informe.
+Apps Script, recuperación DOCI, reglas comerciales, importador, snapshots, PDF e impresión no se modificaron.
+
+PRUEBAS SIMULADAS
+- Alta aplicada + respuesta HTML: una escritura y verificación sin reenvío.
+- Respuesta inválida sin alta, conflicto de datos, consulta caída y reintento exclusivamente de consulta.
+- Error de negocio concreto, HTTP, JSON inválido, transporte y fallo local.
+- Estados de inicialización con caché, limpieza de flags y polling sin novedades.
+- Conservación de la marca de validación determinística DOCI.
+- Pruebas previas de base de venta/validación, recuperación local e importación/refresco aprobadas.
+La prueba antigua ux-performance.js falla en su expectativa de pedidos de hoy con fixtures del 27/09; se confirmó el mismo fallo en v0.20.10 y no se modificó esa prueba ni ese módulo.
+
+INSTALACIÓN Y LÍMITE
+Actualizar únicamente frontend. NO hace falta reemplazar, desplegar ni ejecutar Apps Script; el ZIP lo incluye por completitud.
+No se publicó nada ni se consultó/modificó la Sheet real durante la preparación.
+La causa de la latencia intermitente de producción sigue sin demostrarse. Esta versión mejora la clasificación de errores y evita reenviar altas durante la verificación, sin prometer eliminar la demora del servidor.
+
+HISTORIAL LOCAL DE ERRORES — agregado antes de instalar v0.20.11
+Configuración → Historial de errores → Copiar reporte / Descargar reporte (.txt).
+- Últimos 100 registros de este navegador/dispositivo, desde esta actualización.
+- Se conserva al cerrar/reabrir mediante localStorage; borrar los datos del navegador elimina el historial. No se comparte entre PC y celular.
+- Registra fallos terminados de API (acción, tipo, HTTP, duración), avisos de error de pantalla, estados fallidos de sincronización y errores JS/promesas no controladas.
+- Captura solamente mensajes y metadatos: no toma cuerpos de envíos, fichas, formularios ni respuestas HTML completas. Oculta el token de sesión, URLs y asignaciones habituales de credenciales en los mensajes. Un mensaje de negocio puede incluir el ID mencionado en ese error.
+- Repeticiones consecutivas idénticas en menos de 2 segundos se agrupan.
+- Si no puede persistir, conserva el registro en memoria y avisa que sólo durará esa sesión. Un fallo del registro no interrumpe las operaciones.
+- Copiar usa portapapeles de texto; si no está disponible selecciona el texto para copia manual. Descargar genera un .txt local. Ninguna acción de reporte llama al backend.
+- Un error NO prueba que una operación se haya guardado o no. El reporte no modifica ni recupera operaciones.
+- No agrega timeouts ni detecta un fetch que aún no terminó; no reconstruye errores anteriores a la instalación.
+Cambios adicionales: app.js e index.html. sw.js sólo renueva nombre de caché para entregar esta revisión de v0.20.11. Apps Script sin cambios.
+Pruebas nuevas: persistencia entre cargas, límite 100, agrupación, sanitización, HTTP/duración, errores JS/promesas, copia y alternativa manual, descarga de texto y fallo de almacenamiento. Aprobadas.
+Verificación física mínima: instalar frontend; abrir Configuración → Historial de errores; ante el próximo fallo copiar reporte en ese mismo dispositivo. Se puede comprobar persistencia cerrando y reabriendo la app.

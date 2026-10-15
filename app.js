@@ -134,7 +134,61 @@ async function cancelPendingDocumentIntent(){
   finally{documentIntentBusy=false;renderDocumentIntentBanner()}
 }
 
+// Diagnóstico local: sólo metadatos y mensajes; nunca payloads ni credenciales.
+const ERROR_HISTORY_KEY = "d9g_error_history_v1";
+let errorHistoryMemory = null;
+let errorHistoryPersistent = true;
+function safeErrorText(value){
+  let text=String(value??"");
+  for(const secret of [state.token,localStorageSafeToken()])if(secret)text=text.split(secret).join("[oculto]");
+  return text.replace(/https?:\/\/[^\s<>"']+/gi,"[URL omitida]")
+    .replace(/(bearer\s+)[^\s,;]+/gi,"$1[oculto]")
+    .replace(/(["']?(?:token|access_token|refresh_token|api[_-]?key|password|contraseña|clave|authorization|secret|cookie)["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;}]+)/gi,"$1[oculto]").slice(0,1000);
+}
+function localStorageSafeToken(){try{return localStorage.getItem(STORAGE.token)||""}catch{return ""}}
+function errorHistory(){
+  if(errorHistoryMemory!==null)return errorHistoryMemory;
+  try{const saved=JSON.parse(localStorage.getItem(ERROR_HISTORY_KEY)||"[]");errorHistoryMemory=Array.isArray(saved)?saved.filter(row=>row&&typeof row.mensaje==="string"&&typeof row.fecha==="string").slice(-100):[]}
+  catch{errorHistoryMemory=[];errorHistoryPersistent=false}
+  return errorHistoryMemory;
+}
+function rememberError(action,kind,message,details={}){
+  // Un fallo del registro jamás debe interferir con una operación de Gestión.
+  try{
+    const rows=errorHistory(),now=new Date().toISOString();
+    const row={fecha:now,version:String(CONFIG.APP_VERSION||"sin identificar"),ambito:state.testMode?"TEST":"REAL",accion:safeErrorText(action||"pantalla"),tipo:safeErrorText(kind||"AVISO"),mensaje:safeErrorText(message),http:Number(details.http_status)||0,ms:Number.isFinite(details.ms)?details.ms:null};
+    const last=rows.at(-1);
+    if(last&&last.accion===row.accion&&last.tipo===row.tipo&&last.mensaje===row.mensaje&&Date.parse(now)-Date.parse(last.ultima_fecha||last.fecha)<2000){last.repeticiones=(last.repeticiones||1)+1;last.ultima_fecha=now}
+    else rows.push(row);
+    if(rows.length>100)rows.splice(0,rows.length-100);
+    try{localStorage.setItem(ERROR_HISTORY_KEY,JSON.stringify(rows));errorHistoryPersistent=true}catch{errorHistoryPersistent=false}
+    if(state.currentView==="config")renderErrorHistory();
+  }catch{/* Sólo diagnóstico: no afectar el flujo original. */}
+}
+function errorHistoryReport(){
+  const rows=errorHistory();
+  return ["D9 Gestión — historial local de errores",`Versión actual: ${CONFIG.APP_VERSION||"sin identificar"}`,`Reporte: ${new Date().toISOString()}`,"Sólo este navegador/dispositivo. Sin cuerpos de formularios ni envíos.","La presencia de un error no demuestra si una operación se guardó o no.","",...rows.slice().reverse().map(row=>[`${row.fecha} | v${row.version} | ${row.ambito} | ${row.accion} | ${row.tipo}`,row.http?`HTTP ${row.http}`:"",row.ms!==null&&row.ms!==undefined?`${row.ms} ms`:"",row.repeticiones?`${row.repeticiones} repeticiones; última: ${row.ultima_fecha}`:"",row.mensaje].filter(Boolean).join(" · "))].join("\n");
+}
+function renderErrorHistory(){
+  const text=$("#errorHistoryReport"),status=$("#errorHistoryStatus");if(!text||!status)return;
+  const count=errorHistory().length;text.value=count?errorHistoryReport():"Todavía no hay errores registrados.";
+  status.textContent=`${count} de 100 registros · ${errorHistoryPersistent?"Guardados en este navegador; se conservan al cerrar la app.":"No se pudieron guardar de forma persistente; sólo están disponibles en esta sesión."}`;
+}
+async function copyErrorHistory(){
+  renderErrorHistory();const text=$("#errorHistoryReport");
+  try{if(!navigator.clipboard?.writeText)throw new Error("Copia no disponible");await navigator.clipboard.writeText(text.value);toast("Reporte copiado. Podés pegarlo en el chat.")}
+  catch{text.focus();text.select();toast("Seleccioné el reporte. Usá Copiar del navegador para copiarlo.")}
+}
+function downloadErrorHistory(){renderErrorHistory();downloadBlob(new Blob([$("#errorHistoryReport").value],{type:"text/plain;charset=utf-8"}),`D9_Gestion_errores_${new Date().toISOString().slice(0,10)}.txt`)}
+function bindErrorHistory(){
+  $("#btnCopyErrors").addEventListener("click",copyErrorHistory);
+  $("#btnDownloadErrors").addEventListener("click",downloadErrorHistory);
+  window.addEventListener("error",event=>{if(event.message)rememberError(state.currentView,"JAVASCRIPT",event.message)});
+  window.addEventListener("unhandledrejection",event=>{const reason=event.reason;rememberError(reason?.apiAction||state.currentView,reason?.apiKind||"PROMESA",typeof reason==="string"?reason:reason?.message||"Promesa rechazada sin detalle.")});
+}
+
 function toast(message, type="") {
+  if(type==="error")rememberError(state.currentView,"AVISO",message);
   const el = $("#toast");
   const focusedDialog=document.activeElement?.closest?.("dialog[open]");
   const openDialogs=$$("dialog[open]");
@@ -150,14 +204,21 @@ function apiUrl(action) {
   url.searchParams.set("action", action);
   return url.toString();
 }
-function recordTiming(label,start){const ms=Math.round(performance.now()-start),rows=window.D9_GESTION_TIMINGS||(window.D9_GESTION_TIMINGS=[]);rows.push({accion:label,ms,fecha:new Date().toISOString()});if(rows.length>30)rows.shift();return ms}
-async function parseResponse(res) {
+function recordTiming(label,start,details={}){const ms=Math.round(performance.now()-start),rows=window.D9_GESTION_TIMINGS||(window.D9_GESTION_TIMINGS=[]);rows.push({...details,accion:label,ms,fecha:new Date().toISOString()});if(details.resultado==="ERROR")rememberError(label,details.tipo_error,details.detalle,{http_status:details.http_status,ms});if(rows.length>30)rows.shift();return ms}
+function apiFailure(action,kind,message,status=0){const error=new Error(message);error.apiAction=action;error.apiKind=kind;error.httpStatus=status;return error}
+function apiFailureDetail(error,action=""){
+  const labels={HTTP:"error HTTP",RESPUESTA_INVALIDA:"respuesta inválida",BACKEND:"respuesta de central",TRANSPORTE:"no se pudo contactar con central",LOCAL:"error al aplicar datos"};
+  return `${error.apiAction||action||"Consulta"} · ${labels[error.apiKind]||"error"}: ${error.message||String(error)}`;
+}
+async function parseResponse(res,action="") {
   const text = await res.text();
-  let data; try { data=JSON.parse(text); } catch { throw new Error(`Respuesta inválida: ${text.slice(0,100)}`); }
+  if(res.ok===false)throw apiFailure(action,"HTTP",`El servidor devolvió HTTP ${res.status}.`,res.status);
+  let data; try { data=JSON.parse(text); } catch { throw apiFailure(action,"RESPUESTA_INVALIDA",/^\s*</.test(text)?"El servidor devolvió una página HTML en lugar de los datos esperados.":"El servidor no devolvió un JSON válido."); }
+  if(!data||typeof data!=="object"||typeof data.ok!=="boolean")throw apiFailure(action,"RESPUESTA_INVALIDA","La respuesta no tiene el formato esperado de D9.");
   if (!data.ok) {
     const message=data.error||data.message||"La operación no pudo completarse";
     if(state.token&&/sesión|token|autoriz/i.test(message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
-    const error=new Error(message);
+    const error=apiFailure(action,"BACKEND",message);
     if(data.code==="D9G_VALIDACION_NO_APLICADA"&&data.no_aplicado===true&&typeof data.intencion_id==="string"){error.code=data.code;error.no_aplicado=true;error.intencion_id=data.intencion_id;}
     throw error;
   }
@@ -166,11 +227,12 @@ async function parseResponse(res) {
 async function apiPost(action, payload={}) {
   if (!apiReady()) throw new Error("Falta configurar la URL de D9 Gestión");
   const body = JSON.stringify({action,token:state.token,...payload,ambito:state.testMode?"TEST":"REAL"});
-  const timed=["bootstrap","create_operacion","anular_operacion","create_recibo","source_save_client","source_save_product","source_import_products"].includes(action),start=timed?performance.now():0;
-  try{const res=await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});return await parseResponse(res)}
-  finally{if(timed)recordTiming(action,start)}
+  const timed=["bootstrap","create_operacion","anular_operacion","create_recibo","source_save_client","source_save_product","source_import_products"].includes(action),start=performance.now();let failed=null,status=0;
+  try{const res=await fetch(apiUrl(action),{method:"POST",cache:"no-store",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body});status=res.status||0;return await parseResponse(res,action)}
+  catch(error){if(!error.apiKind)error=apiFailure(action,isNetworkFetchError(error)?"TRANSPORTE":"LOCAL",error.message||String(error),status);failed=error;throw error}
+  finally{if(timed||failed)recordTiming(action,start,{resultado:failed?"ERROR":"OK",http_status:status,tipo_error:failed?.apiKind||"",detalle:failed?.message||""})}
 }
-function isNetworkFetchError(error){return error instanceof TypeError||/networkerror|failed to fetch|load failed|network request failed|fetch resource/i.test(String(error?.message||error||""))}
+function isNetworkFetchError(error){if(error?.apiKind)return error.apiKind==="TRANSPORTE";return error instanceof TypeError||/networkerror|failed to fetch|load failed|network request failed|fetch resource/i.test(String(error?.message||error||""))}
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 async function apiRead(action,params={}){
   try{return await apiPost(action,params)}
@@ -179,13 +241,12 @@ async function apiRead(action,params={}){
     await wait(NETWORK_READ_RETRY_MS);
     try{return await apiPost(action,params)}
     catch(retryError){
-      if(isNetworkFetchError(retryError))throw new Error("No se pudo conectar con D9. Se mantienen los datos guardados.");
       throw retryError;
     }
   }
 }
 
-function setSync(text, error=false) { const el=$("#syncBadge"); el.textContent=text; el.classList.toggle("error",error); }
+function setSync(text, error=false,detail="") { if(error)rememberError(state.currentView,"ESTADO",detail||text); const el=$("#syncBadge"); el.textContent=text;el.title=detail;el.classList.toggle("error",error); }
 function saveSession(data) {
   state.token=data.token; state.user=data.user;
   localStorage.setItem(STORAGE.token,state.token); localStorage.setItem(STORAGE.user,JSON.stringify(state.user));
@@ -306,7 +367,7 @@ async function pollOrders(){
     if(scopeSwitchBusy||pollingGeneration!==scopeGeneration)return;
     if(check.ambito_revision&&String(check.ambito_revision)!==state.scopeRevision){await loadAll({silent:true});return;}
     const financeRevision=String(check.finanzas_revision||""),financeChanged=canIssueDocuments()&&!!financeRevision&&financeRevision!==state.financeRevision;
-    const ordersChanged=!state.ordersRangeActive&&!!ordersRevision&&ordersRevision!==state.ordersRevision,salesChanged=!!salesRevision&&salesRevision!==state.salesRevision;if(!ordersChanged&&!salesChanged&&!financeChanged)return;
+    const ordersChanged=!state.ordersRangeActive&&!!ordersRevision&&ordersRevision!==state.ordersRevision,salesChanged=!!salesRevision&&salesRevision!==state.salesRevision;if(!ordersChanged&&!salesChanged&&!financeChanged){if(!appInitializing&&$("#syncBadge").title?.startsWith("actividad_revision ·"))setSync("Actividad verificada · sin novedades");return;}
     const previousOrderIds=new Set(state.source.pedidos.map(order=>String(order.pedido_id||""))),previousSaleIds=new Set(state.source.ventas.map(sale=>String(sale.venta_id||"")));
     const [ordersData,salesData,financeData]=await Promise.all([ordersChanged?apiRead("pedidos"):null,salesChanged?apiRead("ventas"):null,financeChanged?apiRead("finanzas"):null]);
     if(pollingToken!==state.token||scopeSwitchBusy||pollingGeneration!==scopeGeneration)return;
@@ -320,6 +381,7 @@ async function pollOrders(){
     const news=[];if(newOrders.length)news.push(`${newOrders.length} pedido${newOrders.length===1?"":"s"}`);if(newSales.length)news.push(`${newSales.length} venta${newSales.length===1?"":"s"}`);setSync(news.length?`${news.join(" · ")} nuevo${newOrders.length+newSales.length===1?"":"s"} · ${time}`:`Actividad actualizada ${time}`);
   }catch(err){
     if(pollingGeneration===scopeGeneration&&!scopeSwitchBusy&&/sesión|token|autoriz/i.test(err.message)){clearSession();showLogin("La sesión venció. Volvé a ingresar.")}
+    else if(pollingGeneration===scopeGeneration&&!scopeSwitchBusy&&!appInitializing)setSync("Actividad pendiente de actualizar",true,apiFailureDetail(err,"actividad_revision"));
   }finally{ordersPollBusy=false}
 }
 async function showCachedData() {
@@ -327,7 +389,7 @@ async function showCachedData() {
   if(!cached?.data||cached.userKey!==cacheUserKey())return false;
   applyBootstrap(cached.data);state.cacheLoaded=true;
   const time=cached.savedAt?new Date(cached.savedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}):"";
-  setSync(time?`Datos guardados ${time} · actualizando…`:"Datos guardados · actualizando…");
+  setSync(time?`Datos locales ${time} · consultando central…`:"Datos locales · consultando central…");
   return true;
 }
 async function loadAll(options={}) {
@@ -342,14 +404,18 @@ async function loadAll(options={}) {
   } catch(err) {
     if(generation!==scopeGeneration)return false;
     if (/sesión|token|autoriz/i.test(err.message)) { clearSession(); showLogin("La sesión venció. Volvé a ingresar."); }
-    else {setSync(options.importRefresh?"Vista pendiente de actualizar":state.cacheLoaded?"Datos guardados · sin conexión":"Error de conexión",true);if(!options.importRefresh)toast(err.message,"error")}
+    else {
+      const detail=apiFailureDetail(err.apiKind?err:apiFailure("bootstrap","LOCAL",err.message||String(err)),"bootstrap"),withoutNetwork=typeof navigator!=="undefined"&&navigator.onLine===false&&err.apiKind==="TRANSPORTE";
+      setSync(options.importRefresh?"Vista pendiente de actualizar":withoutNetwork?"Navegador sin red · actualización pendiente":state.cacheLoaded?"Datos locales · actualización pendiente":"No se pudo cargar central",true,detail);
+      if(!options.importRefresh)toast(detail,"error");
+    }
     return false;
   }
 }
 async function initializeAppData(){
   appInitializing=true;setAppBusy("Inicializando Gestión…");renderTestModeD9();const started=performance.now();
   const request=apiRead("bootstrap");request.catch(()=>{});
-  try{const cached=await showCachedData();await loadAll({silent:cached,request})}
+  try{const cached=await showCachedData();if(cached)setAppBusy("Consultando datos actualizados en central…");await loadAll({silent:cached,request})}
   finally{recordTiming("inicio total",started);appInitializing=false;setAppBusy();renderTestModeD9()}
 }
 
@@ -1043,6 +1109,27 @@ function openAdEditor(id=""){
 async function saveAd(event){event.preventDefault();if(!sourceWritesEnabled())return toast("La escritura sobre D9_pedidos está bloqueada por seguridad.","error");const publicidad=readAdForm(),button=$("#btnSaveAd"),message=$("#adFormMessage");if(publicidad.modo==="full"&&!publicidad.imagen_url_full)return toast("Cargá Imagen horizontal URL.","error");if(publicidad.modo==="producto"&&!publicidad.titulo&&!publicidad.imagen_url)return toast("Cargá al menos un título o una imagen de producto.","error");button.disabled=true;button.textContent="Guardando…";message.classList.add("hidden");try{const result=await apiPost("source_save_publicidad",{publicidad});upsertBy(state.source.publicidad,"id",result.publicidad||publicidad);saveCurrentCache();toast(result.message||"Banner guardado");$("#adDialog").close();renderPublicidad();refreshAfterMutation()}catch(err){message.textContent=err.message;message.className="form-message error"}finally{button.disabled=false;button.textContent="Guardar banner"}}
 
 function openClientAccount(clientId){const account=accountRows().find(row=>String(row.cliente_id)===String(clientId)),client=adminClients().find(row=>String(row.id)===String(clientId));if(account)return showAccountDetail(clientId);showView("cuentas");$("#accountsFilter").value="all";$("#accountsSearch").value=client?.nombre||clientId;renderAccounts();toast("Este cliente todavía no tiene movimientos.")}
+let clientSaveVerification=null;
+function clientSaveButtonLabel(){return clientSaveVerification&&clientSaveVerification.owner===cacheUserKey()?(clientSaveVerification.central?"Ver ficha central":`Verificar cliente ${clientSaveVerification.cliente.id}`):"Guardar cliente"}
+function finishClientSave(cliente,message,returnToOperation,refresh=true){
+  upsertBy(state.source.clientes_admin,"id",cliente);state.source.clientes=state.source.clientes_admin.filter(c=>activeValue(c.activo));saveCurrentCache();toast(message);state.clientEditorOrigin="";$("#clientDialog").close();hydrateClientFilters();renderClients();if(returnToOperation&&$("#operationDialog").open){selectOperationClient(cliente.id);setTimeout(()=>$("#opProductSearch").focus(),60)}if(refresh)refreshAfterMutation();
+}
+async function verifyClientSave(){
+  const pending=clientSaveVerification,message=$("#clientFormMessage");if(!pending)return;
+  message.textContent=`Consultando en central el cliente ${pending.cliente.id}… No se vuelve a enviar el guardado.`;message.className="form-message";
+  try{
+    const data=await apiRead("bootstrap");
+    if(pending.owner!==cacheUserKey()||clientSaveVerification!==pending)throw new Error("La sesión o el ámbito cambió durante la verificación.");
+    if(data.permissions?.ambito!==(state.testMode?"TEST":"REAL")||data.permissions?.gestion_admin!==true||!Array.isArray(data.source?.clientes_admin))throw apiFailure("bootstrap","RESPUESTA_INVALIDA","No se recibió el maestro completo de clientes para verificar.");
+    const matches=data.source.clientes_admin.filter(c=>String(c.id)===String(pending.cliente.id));
+    if(matches.length>1)throw new Error("Central contiene más de una ficha con ese ID. Revisá el maestro antes de guardar.");
+    if(!matches.length){clientSaveVerification=null;message.textContent=`${pending.error} En esta consulta el ID ${pending.cliente.id} no figura en central. No se reenviaron datos; revisá antes de volver a guardar con el mismo ID.`;message.className="form-message error";return;}
+    const client=matches[0],same=Object.keys(pending.cliente).every(key=>key==="activo"?activeValue(client[key])===activeValue(pending.cliente[key]):String(client[key]??"").trim()===String(pending.cliente[key]??"").trim());
+    if(same){clientSaveVerification=null;finishClientSave(client,`Cliente ${client.id} verificado en central.`,pending.returnToOperation,false);return;}
+    upsertBy(state.source.clientes_admin,"id",client);state.source.clientes=state.source.clientes_admin.filter(c=>activeValue(c.activo));saveCurrentCache();pending.central=client;
+    message.textContent=`El ID ${client.id} ya existe en central con datos distintos a los enviados. No se reenviaron datos. Abrí la ficha central para revisarla.`;message.className="form-message error";
+  }catch(error){message.textContent=`${pending.error} No se pudo verificar: ${apiFailureDetail(error,"bootstrap")}. Reintentá la verificación; no se reenviará el guardado.`;message.className="form-message error";}
+}
 function openClientEditor(clientId="",origin=""){
   if(!isAdmin())return toast("Esta sesión no puede modificar clientes.","error");
   state.clientEditorOrigin=origin;
@@ -1053,18 +1140,25 @@ function openClientEditor(clientId="",origin=""){
   $("#clientSeller").innerHTML=sellerOptions(client?.vendedor_id||"");$("#clientSeller").value=client?.vendedor_id||"";
   $("#clientLegalName").value=client?.razon_social||"";$("#clientDocumentType").value=client?.tipo_documento||(client?.cuit?"CUIT":"");$("#clientDocumentNumber").value=client?.numero_documento||client?.cuit||"";$("#clientVatCondition").value=client?.condicion_iva||"";$("#clientFiscalAddress").value=client?.domicilio_fiscal||"";$("#clientFiscalCity").value=client?.localidad_fiscal||"";$("#clientFiscalProvince").value=client?.provincia_fiscal||"";$("#clientPostalCode").value=client?.codigo_postal||"";$("#clientBillingEmail").value=client?.email_facturacion||"";
   const fiscalState=clientFiscalState(client||{});$("#clientFiscalDetails").open=fiscalState.id!=="empty";updateClientFiscalStatus();
-  $("#btnSaveClient").disabled=!isAdmin();$("#btnSaveClient").title=isAdmin()?"":"Sólo el administrador puede modificar clientes.";
+  $("#btnSaveClient").disabled=!isAdmin();$("#btnSaveClient").textContent=clientSaveButtonLabel();$("#btnSaveClient").title=isAdmin()?"":"Sólo el administrador puede modificar clientes.";
   $("#btnDeleteClient").classList.toggle("hidden",!client);$("#btnDeleteClient").dataset.clientId=client?.id||"";$("#btnDeleteClient").disabled=!isAdmin();
   $("#clientFormMessage").classList.add("hidden");$("#clientDialog").showModal();setTimeout(()=>$(client?"#clientName":"#clientId").focus(),60);
 }
 async function saveClient(event){
   event.preventDefault();if(!isAdmin())return toast("Esta sesión no puede modificar clientes.","error");
+  if(clientSaveVerification?.owner!==cacheUserKey())clientSaveVerification=null;
+  if(clientSaveVerification){
+    const button=$("#btnSaveClient");setActionBusy(button,true,"Verificando…");
+    try{if(clientSaveVerification.central){const pending=clientSaveVerification;clientSaveVerification=null;openClientEditor(pending.central.id,state.clientEditorOrigin)}else await verifyClientSave()}
+    finally{setActionBusy(button,false,clientSaveButtonLabel())}return;
+  }
   const fiscal=readClientFiscalForm(),documentDigits=onlyDigits(fiscal.numero_documento);
   const seller=sellerById($("#clientSeller").value),cliente={id:$("#clientId").value.trim(),nombre:$("#clientName").value.trim(),telefono:$("#clientPhone").value.trim(),direccion:$("#clientAddress").value.trim(),ciudad:$("#clientCity").value.trim(),lista_precio:$("#clientPriceList").value||"lista_1",vendedor_id:seller?.id||"",vendedor:seller?.nombre||"",activo:$("#clientActive").value,...fiscal,cuit:fiscal.tipo_documento==="CUIT"?documentDigits:""};
   if(!cliente.id||!cliente.nombre)return toast("ID y nombre comercial son obligatorios.","error");
-  const button=$("#btnSaveClient"),message=$("#clientFormMessage");setActionBusy(button,true,"Guardando…");message.classList.add("hidden");
+  const button=$("#btnSaveClient"),message=$("#clientFormMessage"),returnToOperation=state.clientEditorOrigin==="operation"&&$("#operationDialog").open;let confirmed=false;
+  setActionBusy(button,true,"Guardando…");message.classList.add("hidden");
   try{
-    const returnToOperation=state.clientEditorOrigin==="operation"&&$("#operationDialog").open,isNew=$("#clientForm").dataset.mode==="new";
+    const isNew=$("#clientForm").dataset.mode==="new";
     let result=await apiPost("source_save_client",{cliente,nuevo:isNew});
     if(result.requiere_confirmacion&&result.coincidencia){
       const match=result.coincidencia,existing=match.cliente||{},details=[existing.nombre,existing.telefono,existing.direccion,existing.ciudad].filter(Boolean).join(" · ");
@@ -1074,10 +1168,14 @@ async function saveClient(event){
       if(match.nivel==="POSIBLE"&&confirm("La coincidencia puede corresponder a otro comercio. ¿Crear igualmente una ficha distinta?"))result=await apiPost("source_save_client",{cliente,nuevo:true,confirmar_distinto:true});
       else {message.textContent="No se creó ningún cliente. Revisá la ficha existente.";message.className="form-message error";message.classList.remove("hidden");return;}
     }
-    upsertBy(state.source.clientes_admin,"id",cliente);state.source.clientes=state.source.clientes_admin.filter(c=>activeValue(c.activo));saveCurrentCache();toast(result.message||"Cliente guardado");state.clientEditorOrigin="";$("#clientDialog").close();hydrateClientFilters();renderClients();if(returnToOperation){selectOperationClient(cliente.id);setTimeout(()=>$("#opProductSearch").focus(),60)}refreshAfterMutation();
+    if(String(result.id||"")!==cliente.id)throw apiFailure("source_save_client","RESPUESTA_INVALIDA","La respuesta no confirmó el ID del cliente enviado.");
+    confirmed=true;finishClientSave(cliente,result.message||"Cliente guardado",returnToOperation);
   }
-  catch(err){message.textContent=err.message;message.className="form-message error";message.classList.remove("hidden")}
-  finally{setActionBusy(button,false,"Guardar cliente")}
+  catch(err){
+    message.textContent=(confirmed?"Central confirmó el guardado, pero falló la actualización de la vista. ":"")+apiFailureDetail(err,"source_save_client");message.className="form-message error";message.classList.remove("hidden");
+    if(!confirmed&&["TRANSPORTE","RESPUESTA_INVALIDA","HTTP"].includes(err.apiKind)){clientSaveVerification={cliente:{...cliente},owner:cacheUserKey(),returnToOperation,error:message.textContent};await verifyClientSave();}
+  }
+  finally{setActionBusy(button,false,clientSaveButtonLabel())}
 }
 async function deleteClient(){
   if(!isAdmin())return toast("Esta sesión no puede eliminar clientes.","error");
@@ -1176,7 +1274,7 @@ async function saveUser(event){
 function renderReports(){if(state.currentReport)openReport(state.currentReport);else showReportsHub()}
 function showReportsHub(){state.currentReport="";$("#reportsHub").classList.remove("hidden");$$(".report-detail").forEach(view=>view.classList.add("hidden"))}
 function openReport(kind){state.currentReport=kind;$("#reportsHub").classList.add("hidden");$$(".report-detail").forEach(view=>view.classList.add("hidden"));const view=$(kind==="sales"?"#salesReportView":kind==="statistics"?"#statisticsReportView":"#commissionReportView");view.classList.remove("hidden");if(kind==="sales")$("#salesReportResults").classList.add("hidden");else if(kind==="statistics")void loadStatisticsD9();else{$("#commissionReportResults").classList.add("hidden");renderCommissionClosures()}window.scrollTo({top:0,behavior:"smooth"})}
-function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,ventas:renderSales,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,"lista-precios":renderPriceList,clientes:renderClients,usuarios:renderUsers,ofertas:renderOffers,publicidad:renderPublicidad,reportes:renderReports}[state.currentView]||(()=>{}))(); }
+function renderCurrentView() { ({home:renderHome,pedidos:renderOrders,ventas:renderSales,operaciones:renderOperations,cuentas:renderAccounts,recibos:renderReceipts,cheques:renderChecks,maestros:renderMasters,"lista-precios":renderPriceList,clientes:renderClients,usuarios:renderUsers,ofertas:renderOffers,publicidad:renderPublicidad,reportes:renderReports,config:renderErrorHistory}[state.currentView]||(()=>{}))(); }
 function renderAll() { renderHome(); if(state.currentView!=="home")renderCurrentView(); }
 
 function populateSelectors() {
@@ -1654,6 +1752,7 @@ async function annulOperation(id){
 async function updateCheck(id,status){if(!isAdmin())return toast("Sólo administración puede cambiar cheques.","error");if(!confirm(`¿Marcar el cheque como ${status.toLowerCase()}?`))return;try{await apiPost("update_cheque_status",{cheque_id:id,estado:status});toast("Cheque actualizado");await loadAll()}catch(err){toast(err.message,"error")}}
 
 function bindEvents(){
+  bindErrorHistory();
   $("#btnRetryDocumentIntent").addEventListener("click",recoverPendingDocumentIntent);
   $("#btnCancelDocumentIntent").addEventListener("click",cancelPendingDocumentIntent);
   bindPriceListEvents();
